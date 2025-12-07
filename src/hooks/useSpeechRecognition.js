@@ -304,7 +304,7 @@ export const useSpeechRecognition = () => {
         clearTimeout(restartTimeoutRef.current);
       }
     };
-  }, [transcript]);
+  }, []); // Empty dependency array - only create recognition once
 
   const requestMicrophonePermission = async () => {
     try {

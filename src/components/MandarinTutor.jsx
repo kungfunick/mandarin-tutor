@@ -89,9 +89,10 @@ const MandarinTutor = () => {
       console.log('📝 Setting transcript to input:', transcript);
       logger.info(`Transcript received: "${transcript}"`);
       setInputText(transcript);
-      resetTranscript();
+      // Don't reset here - let it accumulate during the session
+      // Only reset when user manually stops or sends the message
     }
-  }, [transcript, resetTranscript]);
+  }, [transcript]);
 
   // Handle microphone toggle
   const handleToggleListening = () => {
@@ -99,6 +100,8 @@ const MandarinTutor = () => {
       console.log('🛑 User clicked to stop listening');
       logger.info('User stopped listening manually');
       stopListening();
+      // Don't reset transcript here - let the user see what was captured
+      // They can manually clear it or send it
     } else {
       console.log('🎤 User clicked to start listening');
       logger.info('User started listening');
@@ -185,6 +188,7 @@ const MandarinTutor = () => {
     logger.info(`User message: "${inputText}"`);
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
+    resetTranscript(); // Reset the speech recognition transcript
     setIsLoading(true);
 
     try {
