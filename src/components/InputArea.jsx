@@ -15,14 +15,14 @@ export const InputArea = ({
     <div className="bg-white border-t border-gray-200 p-4">
       <div className="max-w-4xl mx-auto">
         {speechError && (
-          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" data-debug-ui>
             <p className="font-medium">Speech Recognition Error:</p>
             <p>{speechError}</p>
           </div>
         )}
 
         {speechDebugInfo && (
-          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700" data-debug-ui>
             <p className="font-medium">Debug Info:</p>
             <p>{speechDebugInfo}</p>
           </div>

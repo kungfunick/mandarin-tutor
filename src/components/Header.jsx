@@ -1,12 +1,13 @@
 import React from 'react';
-import { MessageSquare, Save, History, RotateCcw, Settings, Zap } from 'lucide-react';
+import { MessageSquare, Save, History, RotateCcw, Settings, Zap, Bug } from 'lucide-react';
 
 export const Header = ({
   currentProvider,
   onSave,
   onToggleHistory,
   onReset,
-  onToggleSettings
+  onToggleSettings,
+  onToggleDebug
 }) => {
   return (
     <div className="bg-white shadow-sm border-b border-red-100 p-4">
@@ -22,6 +23,13 @@ export const Header = ({
           </div>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={onToggleDebug}
+            className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
+            title="Debug settings"
+          >
+            <Bug size={20} className="text-purple-600" />
+          </button>
           <button
             onClick={onSave}
             className="p-2 hover:bg-green-100 rounded-lg transition-colors"

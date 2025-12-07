@@ -5,6 +5,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { MessageBubble, LoadingIndicator } from './MessageBubble';
 import { InputArea } from './InputArea';
 import { CustomProviderModal } from './CustomProviderModal';
+import { DebugPanel } from './DebugPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
@@ -35,6 +36,7 @@ const MandarinTutor = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomProviders, setShowCustomProviders] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Persistent settings using custom hook
   const [aiProvider, setAiProvider] = useLocalStorage('aiProvider', 'claude');
@@ -54,7 +56,9 @@ const MandarinTutor = () => {
     debugInfo: speechDebugInfo,
     startListening,
     stopListening,
-    resetTranscript
+    resetTranscript,
+    adjustNoiseGate,
+    adjustMinSpeechLevel
   } = useSpeechRecognition();
 
   const { speak } = useTextToSpeech();
@@ -275,6 +279,12 @@ const MandarinTutor = () => {
         onToggleHistory={() => setShowHistory(!showHistory)}
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
+        onToggleDebug={() => setShowDebug(!showDebug)}
+      />
+
+      <DebugPanel
+        show={showDebug}
+        onClose={() => setShowDebug(false)}
       />
 
       <HistoryPanel
@@ -302,6 +312,8 @@ const MandarinTutor = () => {
         onSaveSettings={handleSaveSettings}
         customProviders={customProviders}
         onOpenCustomProviders={() => setShowCustomProviders(true)}
+        onAdjustNoiseGate={adjustNoiseGate}
+        onAdjustMinSpeech={adjustMinSpeechLevel}
       />
 
       <CustomProviderModal

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import logger from '../utils/logger';
 
 /**
  * Custom hook for speech recognition functionality
@@ -18,6 +19,14 @@ export const useSpeechRecognition = () => {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const volumeCheckIntervalRef = useRef(null);
+  const shouldKeepListeningRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const sessionStartTimeRef = useRef(null);
+  const restartCountRef = useRef(0);
+  const lastTranscriptRef = useRef('');
+  const noiseGateThresholdRef = useRef(15); // Adjustable noise gate
+  const minSpeechLevelRef = useRef(25); // Minimum level to consider as speech
+  const significantSpeechDetectedRef = useRef(false); // Track last transcript separately
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -36,13 +45,25 @@ export const useSpeechRecognition = () => {
     recognition.maxAlternatives = 5; // Increased for better alternatives
 
     recognition.onstart = () => {
-      console.log('🎤 Speech recognition started');
+      const msg = '🎤 Speech recognition started';
+      console.log(msg);
+      logger.info(msg);
       setIsListening(true);
       setError(null);
-      hasReceivedSpeechRef.current = false;
-      soundDetectedRef.current = false;
-      audioStartTimeRef.current = null;
-      setDebugInfo('🎤 Ready - speak in Mandarin now!');
+
+      if (!sessionStartTimeRef.current) {
+        sessionStartTimeRef.current = Date.now();
+        accumulatedTranscriptRef.current = '';
+        restartCountRef.current = 0;
+        significantSpeechDetectedRef.current = false;
+      }
+
+      const elapsed = sessionStartTimeRef.current ? (Date.now() - sessionStartTimeRef.current) / 1000 : 0;
+      const details = `Session time: ${elapsed.toFixed(1)}s, Restarts: ${restartCountRef.current}, Noise gate: ${noiseGateThresholdRef.current}, Min speech: ${minSpeechLevelRef.current}`;
+      console.log(`   ${details}`);
+      logger.debug(details);
+
+      setDebugInfo(`🎤 Listening... (${elapsed.toFixed(0)}s) - Speak clearly into mic`);
     };
 
     recognition.onaudiostart = () => {
@@ -76,18 +97,35 @@ export const useSpeechRecognition = () => {
     };
 
     recognition.onspeechend = () => {
-      console.log('💬 Speech ended');
-      setDebugInfo('💬 Speech ended - finalizing transcript...');
+      console.log('💬 Speech ended - CRITICAL SAVE POINT');
+      console.log(`   lastTranscriptRef right now: "${lastTranscriptRef.current}"`);
+      console.log(`   accumulatedTranscriptRef before: "${accumulatedTranscriptRef.current}"`);
+
+      // IMPORTANT: Save transcript NOW before anything else happens
+      if (lastTranscriptRef.current && lastTranscriptRef.current.trim()) {
+        const textToSave = lastTranscriptRef.current;
+        if (!accumulatedTranscriptRef.current.includes(textToSave)) {
+          accumulatedTranscriptRef.current += textToSave;
+          console.log(`✅ ✅ ✅ SAVED on speechend: "${textToSave}"`);
+          console.log(`   Accumulated NOW: "${accumulatedTranscriptRef.current}"`);
+        } else {
+          console.log(`ℹ️ Already in accumulated: "${textToSave}"`);
+        }
+      } else {
+        console.warn(`⚠️ ⚠️ ⚠️ lastTranscriptRef was EMPTY at speechend!`);
+      }
+
+      setDebugInfo('💬 Speech ended - saved text');
     };
 
     recognition.onresult = (event) => {
       console.log('📝 Speech recognition result:', event);
       console.log(`   Total results: ${event.results.length}`);
 
-      // Build complete transcript from all results
-      let fullTranscript = '';
+      // Build transcript from current segment
+      let currentSegmentTranscript = '';
       for (let i = 0; i < event.results.length; i++) {
-        fullTranscript += event.results[i][0].transcript;
+        currentSegmentTranscript += event.results[i][0].transcript;
       }
 
       // Log all results and alternatives
@@ -100,12 +138,25 @@ export const useSpeechRecognition = () => {
         }
       }
 
-      console.log(`✅ Full transcript so far: "${fullTranscript}"`);
-      setTranscript(fullTranscript);
-      setDebugInfo(`✅ Got: "${fullTranscript}" (keep speaking or click mic to stop)`);
+      // Only process if we have actual meaningful text
+      if (currentSegmentTranscript.trim()) {
+        // Mark that we got significant speech
+        significantSpeechDetectedRef.current = true;
 
-      // Don't auto-stop - let user control when to stop
-      // This prevents the API from cutting off early
+        // Save this transcript immediately for use in onspeechend
+        lastTranscriptRef.current = currentSegmentTranscript;
+
+        // Always show combined transcript (accumulated + current)
+        const displayTranscript = accumulatedTranscriptRef.current + currentSegmentTranscript;
+        console.log(`✅ Display: "${displayTranscript}" (accumulated: "${accumulatedTranscriptRef.current}", current: "${currentSegmentTranscript}")`);
+
+        setTranscript(displayTranscript);
+
+        const elapsed = sessionStartTimeRef.current ? (Date.now() - sessionStartTimeRef.current) / 1000 : 0;
+        setDebugInfo(`✅ "${displayTranscript}" (${elapsed.toFixed(0)}s) - Keep speaking or click to stop`);
+      } else {
+        console.log(`⚠️ Empty transcript in result, ignoring (likely noise)`);
+      }
     };
 
     recognition.onerror = (event) => {
@@ -181,8 +232,11 @@ export const useSpeechRecognition = () => {
 
     recognition.onend = () => {
       console.log('🛑 Speech recognition ended');
-      console.log(`   Final state - Sound: ${soundDetectedRef.current}, Speech: ${hasReceivedSpeechRef.current}, Transcript: "${transcript}"`);
-      setIsListening(false);
+      const elapsed = sessionStartTimeRef.current ? (Date.now() - sessionStartTimeRef.current) / 1000 : 0;
+      console.log(`   Session elapsed: ${elapsed.toFixed(1)}s`);
+      console.log(`   Last transcript ref: "${lastTranscriptRef.current}"`);
+      console.log(`   Accumulated: "${accumulatedTranscriptRef.current}"`);
+      console.log(`   Should keep listening: ${shouldKeepListeningRef.current}`);
 
       stopVolumeMonitoring();
 
@@ -190,16 +244,53 @@ export const useSpeechRecognition = () => {
         clearTimeout(restartTimeoutRef.current);
       }
 
-      if (!transcript) {
-        if (soundDetectedRef.current && !hasReceivedSpeechRef.current) {
-          setDebugInfo('⚠️ Heard sound but couldn\'t recognize speech. Try speaking more clearly or use Chrome.');
-        } else if (!soundDetectedRef.current) {
-          setDebugInfo('⚠️ No sound detected at all! Check: 1) Mic not muted 2) Correct mic selected 3) System volume');
-        } else {
-          setDebugInfo('Ended - no speech captured');
+      // Try to save one more time in case onspeechend didn't fire
+      if (lastTranscriptRef.current && lastTranscriptRef.current.trim()) {
+        if (!accumulatedTranscriptRef.current.includes(lastTranscriptRef.current)) {
+          accumulatedTranscriptRef.current += lastTranscriptRef.current;
+          console.log(`✅ SAVED on end (backup): "${lastTranscriptRef.current}"`);
+          console.log(`   Accumulated now: "${accumulatedTranscriptRef.current}"`);
         }
+      }
+
+      // Clear for next segment
+      lastTranscriptRef.current = '';
+
+      // If we should keep listening and haven't hit 60 second limit, restart
+      if (shouldKeepListeningRef.current && elapsed < 60) {
+        console.log(`🔄 Auto-restarting... (accumulated so far: "${accumulatedTranscriptRef.current}")`);
+        restartCountRef.current++;
+
+        // Update display with accumulated before restart
+        if (accumulatedTranscriptRef.current) {
+          setTranscript(accumulatedTranscriptRef.current);
+        }
+
+        // Restart after brief delay
+        restartTimeoutRef.current = setTimeout(() => {
+          try {
+            startVolumeMonitoring();
+            recognitionRef.current.start();
+          } catch (err) {
+            console.error('❌ Restart failed:', err);
+            setIsListening(false);
+            shouldKeepListeningRef.current = false;
+          }
+        }, 100);
       } else {
-        setDebugInfo('✅ Complete! Text is in the input box.');
+        // Actually stop
+        console.log('✅ Session complete');
+        setIsListening(false);
+        shouldKeepListeningRef.current = false;
+
+        // Set final transcript to accumulated
+        if (accumulatedTranscriptRef.current) {
+          console.log(`✅ Final transcript: "${accumulatedTranscriptRef.current}"`);
+          setTranscript(accumulatedTranscriptRef.current);
+          setDebugInfo(`✅ Complete! Got: "${accumulatedTranscriptRef.current}"`);
+        } else {
+          setDebugInfo('Ended - click mic and speak to try again');
+        }
       }
     };
 
@@ -284,18 +375,19 @@ export const useSpeechRecognition = () => {
     try {
       setError(null);
       setTranscript('');
-      hasReceivedSpeechRef.current = false;
-      soundDetectedRef.current = false;
-      audioStartTimeRef.current = null;
+      shouldKeepListeningRef.current = true;
+      sessionStartTimeRef.current = Date.now();
+      accumulatedTranscriptRef.current = '';
+      restartCountRef.current = 0;
       setDebugInfo('🎤 Starting...');
 
-      console.log('🎤 Starting speech recognition...');
+      console.log('🎤 Starting continuous speech recognition session...');
       console.log('   Language: zh-CN (Mandarin Chinese)');
-      console.log('   Continuous: true');
-      console.log('   Interim results: true');
-      console.log('   Max alternatives: 5');
+      console.log('   Continuous: true (with auto-restart on end)');
+      console.log('   Max session time: 60 seconds');
+      console.log('   Click microphone again to stop');
 
-      // Start real-time volume monitoring
+      // Start volume monitoring
       await startVolumeMonitoring();
 
       recognitionRef.current.start();
@@ -327,29 +419,51 @@ export const useSpeechRecognition = () => {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 512; // Increased for better frequency resolution
+      analyser.smoothingTimeConstant = 0.8; // Smooth out fluctuations
       source.connect(analyser);
 
       audioContextRef.current = { audioContext, stream };
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let peakLevel = 0;
+      let consecutiveHighSamples = 0;
 
       volumeCheckIntervalRef.current = setInterval(() => {
         analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
-        if (average > 1) {
-          console.log(`📊 Live audio level: ${average.toFixed(1)}/255`);
+        // Calculate average across relevant frequency bands (human speech: ~85-255 Hz range)
+        // Focus on middle frequencies where speech occurs
+        const relevantBands = dataArray.slice(2, 40); // Skip very low frequencies
+        const average = relevantBands.reduce((a, b) => a + b, 0) / relevantBands.length;
+
+        // Track peak
+        if (average > peakLevel) peakLevel = average;
+
+        // Only log if above noise gate
+        if (average > noiseGateThresholdRef.current) {
+          console.log(`📊 Audio level: ${average.toFixed(1)}/255 ${average > minSpeechLevelRef.current ? '🗣️ SPEECH' : '🔉 low'}`);
+
+          // Count consecutive samples above speech threshold
+          if (average > minSpeechLevelRef.current) {
+            consecutiveHighSamples++;
+            if (consecutiveHighSamples >= 2 && !soundDetectedRef.current) {
+              console.log(`✅ ✅ SIGNIFICANT SPEECH DETECTED! Level: ${average.toFixed(1)}`);
+              soundDetectedRef.current = true;
+            }
+          } else {
+            consecutiveHighSamples = 0;
+          }
+        } else {
+          // Reset counter if we drop below noise gate
+          consecutiveHighSamples = 0;
         }
+      }, 300); // Check every 300ms
 
-        if (average > 20 && !soundDetectedRef.current) {
-          console.log(`✅ SOUND DETECTED! Level: ${average.toFixed(1)}`);
-          soundDetectedRef.current = true;
-        }
-      }, 500);
-
-      console.log('✅ Volume monitoring started');
+      console.log('✅ Volume monitoring started with noise gating');
+      console.log(`   Noise gate threshold: ${noiseGateThresholdRef.current}/255`);
+      console.log(`   Min speech level: ${minSpeechLevelRef.current}/255`);
     } catch (err) {
       console.error('❌ Volume monitoring failed:', err);
     }
@@ -372,7 +486,10 @@ export const useSpeechRecognition = () => {
 
   const stopListening = () => {
     if (recognitionRef.current && isListening) {
-      console.log('🛑 Manual stop requested');
+      console.log('🛑 Manual stop requested by user');
+
+      // Set flag to prevent auto-restart
+      shouldKeepListeningRef.current = false;
 
       if (restartTimeoutRef.current) {
         clearTimeout(restartTimeoutRef.current);
@@ -385,8 +502,22 @@ export const useSpeechRecognition = () => {
 
   const resetTranscript = () => {
     setTranscript('');
-    hasReceivedSpeechRef.current = false;
-    soundDetectedRef.current = false;
+    accumulatedTranscriptRef.current = '';
+    lastTranscriptRef.current = '';
+    sessionStartTimeRef.current = null;
+    restartCountRef.current = 0;
+    significantSpeechDetectedRef.current = false;
+  };
+
+  // Export ability to adjust noise gate
+  const adjustNoiseGate = (threshold) => {
+    noiseGateThresholdRef.current = threshold;
+    console.log(`🎚️ Noise gate set to: ${threshold}/255`);
+  };
+
+  const adjustMinSpeechLevel = (threshold) => {
+    minSpeechLevelRef.current = threshold;
+    console.log(`🎚️ Min speech level set to: ${threshold}/255`);
   };
 
   // Cleanup on unmount
@@ -404,6 +535,8 @@ export const useSpeechRecognition = () => {
     startListening,
     stopListening,
     resetTranscript,
+    adjustNoiseGate,
+    adjustMinSpeechLevel,
     isSupported: !!recognitionRef.current
   };
 };

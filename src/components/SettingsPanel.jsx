@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 
 export const SettingsPanel = ({
@@ -18,9 +18,24 @@ export const SettingsPanel = ({
   currentProvider,
   onSaveSettings,
   customProviders,
-  onOpenCustomProviders
+  onOpenCustomProviders,
+  onAdjustNoiseGate,
+  onAdjustMinSpeech
 }) => {
+  const [noiseGate, setNoiseGate] = useState(15);
+  const [minSpeech, setMinSpeech] = useState(25);
+
   if (!show) return null;
+
+  const handleNoiseGateChange = (value) => {
+    setNoiseGate(value);
+    onAdjustNoiseGate(value);
+  };
+
+  const handleMinSpeechChange = (value) => {
+    setMinSpeech(value);
+    onAdjustMinSpeech(value);
+  };
 
   return (
     <div className="bg-yellow-50 border-b border-yellow-200 p-4 max-h-96 overflow-y-auto">
@@ -152,6 +167,56 @@ export const SettingsPanel = ({
           <label htmlFor="showTrans" className="text-sm text-gray-700">
             Show pinyin and English translations
           </label>
+        </div>
+
+        <div className="border-t border-yellow-300 pt-4 mt-4">
+          <h4 className="font-medium text-gray-800 mb-3">🎤 Microphone Settings (for dynamic mics)</h4>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Noise Gate: {noiseGate}/255
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="40"
+                value={noiseGate}
+                onChange={(e) => handleNoiseGateChange(parseInt(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Filters out background noise. Higher = less sensitive. Start at 15, increase if background noise triggers speech.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Min Speech Level: {minSpeech}/255
+              </label>
+              <input
+                type="range"
+                min="15"
+                max="60"
+                value={minSpeech}
+                onChange={(e) => handleMinSpeechChange(parseInt(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Minimum volume to register as speech. Higher = need to speak louder. Start at 25.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800">
+              <p className="font-medium mb-1">Dynamic Mic Tips:</p>
+              <ul className="space-y-1">
+                <li>• Speak 6-12 inches from mic</li>
+                <li>• Increase noise gate if room noise triggers recording</li>
+                <li>• Lower min speech if your voice isn't being detected</li>
+                <li>• Watch console for "🗣️ SPEECH" markers when you speak</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
