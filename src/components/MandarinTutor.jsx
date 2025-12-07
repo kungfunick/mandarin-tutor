@@ -5,7 +5,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { MessageBubble, LoadingIndicator } from './MessageBubble';
 import { InputArea } from './InputArea';
 import { CustomProviderModal } from './CustomProviderModal';
-import { DebugPanel } from './DebugPanel';
+import { AdvancedSettings } from './AdvancedSettings';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
@@ -17,6 +17,7 @@ import {
   parseAIResponse,
   getProviderInfo
 } from '../services/aiService';
+import logger from '../utils/logger';
 
 const MandarinTutor = () => {
   // Message state
@@ -36,7 +37,7 @@ const MandarinTutor = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomProviders, setShowCustomProviders] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Persistent settings using custom hook
   const [aiProvider, setAiProvider] = useLocalStorage('aiProvider', 'claude');
@@ -46,6 +47,10 @@ const MandarinTutor = () => {
   const [customProviders, setCustomProviders] = useLocalStorage('customProviders', []);
   const [difficulty, setDifficulty] = useLocalStorage('difficulty', 'beginner');
   const [showTranslations, setShowTranslations] = useLocalStorage('showTranslations', true);
+  const [showDebugUI, setShowDebugUI] = useLocalStorage('showDebugUI', true);
+  const [correctionMode, setCorrectionMode] = useLocalStorage('correctionMode', false);
+  const [theme, setTheme] = useLocalStorage('theme', 'standard');
+  const [voiceGender, setVoiceGender] = useLocalStorage('voiceGender', 'female');
   const [conversationHistory, setConversationHistory] = useLocalStorage('conversationHistory', []);
 
   // Custom hooks for speech
@@ -65,6 +70,14 @@ const MandarinTutor = () => {
 
   const messagesEndRef = useRef(null);
 
+  // Initialize debug UI visibility on mount
+  useEffect(() => {
+    const debugElements = document.querySelectorAll('[data-debug-ui]');
+    debugElements.forEach(el => {
+      el.style.display = showDebugUI ? '' : 'none';
+    });
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +86,8 @@ const MandarinTutor = () => {
   // Update input text when speech recognition gets result
   useEffect(() => {
     if (transcript) {
+      console.log('📝 Setting transcript to input:', transcript);
+      logger.info(`Transcript received: "${transcript}"`);
       setInputText(transcript);
       resetTranscript();
     }
@@ -81,8 +96,12 @@ const MandarinTutor = () => {
   // Handle microphone toggle
   const handleToggleListening = () => {
     if (isListening) {
+      console.log('🛑 User clicked to stop listening');
+      logger.info('User stopped listening manually');
       stopListening();
     } else {
+      console.log('🎤 User clicked to start listening');
+      logger.info('User started listening');
       startListening();
     }
   };
@@ -115,9 +134,11 @@ const MandarinTutor = () => {
       const updated = [...customProviders];
       updated[existingIndex] = provider;
       setCustomProviders(updated);
+      logger.info(`Updated custom provider: ${provider.label}`);
     } else {
       // Add new
       setCustomProviders([...customProviders, provider]);
+      logger.info(`Added new custom provider: ${provider.label}`);
     }
 
     alert('Custom provider saved!');
@@ -126,7 +147,9 @@ const MandarinTutor = () => {
   // Delete custom provider
   const handleDeleteCustomProvider = (id) => {
     if (confirm('Delete this custom provider?')) {
+      const provider = customProviders.find(p => p.id === id);
       setCustomProviders(customProviders.filter(p => p.id !== id));
+      logger.info(`Deleted custom provider: ${provider?.label || id}`);
 
       // If currently selected provider is deleted, switch to Claude
       if (aiProvider === id) {
@@ -137,13 +160,17 @@ const MandarinTutor = () => {
 
   // Send message to AI
   const sendMessage = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim()) {
+      logger.warn('Attempted to send empty message');
+      return;
+    }
 
     const currentApiKey = getCurrentApiKey();
     const customProvider = getCustomProvider();
 
     // Check if we need an API key (custom providers might not need one)
     if (!currentApiKey && !customProvider) {
+      logger.error(`No API key set for provider: ${aiProvider}`);
       alert(`Please set your ${aiProvider.toUpperCase()} API key in the settings (gear icon).`);
       setShowSettings(true);
       return;
@@ -155,6 +182,7 @@ const MandarinTutor = () => {
       timestamp: new Date()
     };
 
+    logger.info(`User message: "${inputText}"`);
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
@@ -165,29 +193,36 @@ const MandarinTutor = () => {
         content: msg.mandarin
       }));
 
+      logger.info(`Calling AI API: ${aiProvider} (correction mode: ${correctionMode})`);
       let responseText;
 
       if (customProvider) {
         // Use custom provider
-        responseText = await callCustomAPI(customProvider, conversationHistory, inputText, difficulty);
+        logger.debug(`Using custom provider: ${customProvider.label}`);
+        responseText = await callCustomAPI(customProvider, conversationHistory, inputText, difficulty, correctionMode);
       } else {
         // Use built-in provider
         switch (aiProvider) {
           case 'claude':
-            responseText = await callClaudeAPI(currentApiKey, conversationHistory, inputText, difficulty);
+            logger.debug('Calling Claude API');
+            responseText = await callClaudeAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
             break;
           case 'openai':
-            responseText = await callOpenAIAPI(currentApiKey, conversationHistory, inputText, difficulty);
+            logger.debug('Calling OpenAI API');
+            responseText = await callOpenAIAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
             break;
           case 'gemini':
-            responseText = await callGeminiAPI(currentApiKey, conversationHistory, inputText, difficulty);
+            logger.debug('Calling Gemini API');
+            responseText = await callGeminiAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
             break;
           default:
             throw new Error('Invalid AI provider');
         }
       }
 
+      logger.debug(`Raw AI response: ${responseText}`);
       const parsedResponse = parseAIResponse(responseText);
+      logger.info(`AI response: "${parsedResponse.mandarin}"`);
 
       const assistantMessage = {
         role: 'assistant',
@@ -200,9 +235,13 @@ const MandarinTutor = () => {
       setMessages(prev => [...prev, assistantMessage]);
 
       // Auto-play response
-      setTimeout(() => speak(parsedResponse.mandarin), 300);
+      setTimeout(() => {
+        logger.debug('Playing TTS for AI response');
+        speak(parsedResponse.mandarin, { gender: voiceGender });
+      }, 300);
 
     } catch (error) {
+      logger.error('AI API Error:', error.message, error.stack);
       console.error('Error:', error);
       alert(`Error: ${error.message}\n\nCheck your API key and configuration, then try again.`);
     } finally {
@@ -229,6 +268,7 @@ const MandarinTutor = () => {
 
     const updatedHistory = [newConversation, ...conversationHistory];
     setConversationHistory(updatedHistory);
+    logger.info(`Conversation saved: ${conversationTitle}`);
     alert('Conversation saved!');
   };
 
@@ -238,6 +278,7 @@ const MandarinTutor = () => {
     setDifficulty(conversation.difficulty);
     setAiProvider(conversation.provider);
     setShowHistory(false);
+    logger.info(`Loaded conversation: ${conversation.title}`);
   };
 
   // Delete a conversation
@@ -245,6 +286,7 @@ const MandarinTutor = () => {
     if (confirm('Delete this conversation?')) {
       const updatedHistory = conversationHistory.filter(conv => conv.id !== id);
       setConversationHistory(updatedHistory);
+      logger.info(`Deleted conversation: ${id}`);
     }
   };
 
@@ -260,11 +302,19 @@ const MandarinTutor = () => {
           timestamp: new Date()
         }
       ]);
+      logger.info('Started new conversation');
     }
   };
 
   // Save settings manually
   const handleSaveSettings = () => {
+    logger.info('Settings saved', {
+      provider: aiProvider,
+      difficulty,
+      showTranslations,
+      showDebugUI,
+      correctionMode
+    });
     alert('Settings saved successfully!');
     setShowSettings(false);
   };
@@ -272,19 +322,25 @@ const MandarinTutor = () => {
   const currentProvider = getProviderInfo(aiProvider, customProviders);
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-red-50 to-orange-50">
+    <div className={`flex flex-col h-screen ${
+      theme === 'dark'
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800'
+        : 'bg-gradient-to-br from-red-50 to-orange-50'
+    }`}>
       <Header
         currentProvider={currentProvider}
         onSave={saveCurrentConversation}
         onToggleHistory={() => setShowHistory(!showHistory)}
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
-        onToggleDebug={() => setShowDebug(!showDebug)}
+        onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
+        showDebugButton={showDebugUI}
+        theme={theme}
       />
 
-      <DebugPanel
-        show={showDebug}
-        onClose={() => setShowDebug(false)}
+      <AdvancedSettings
+        show={showAdvanced}
+        onClose={() => setShowAdvanced(false)}
       />
 
       <HistoryPanel
@@ -314,6 +370,14 @@ const MandarinTutor = () => {
         onOpenCustomProviders={() => setShowCustomProviders(true)}
         onAdjustNoiseGate={adjustNoiseGate}
         onAdjustMinSpeech={adjustMinSpeechLevel}
+        showDebugUI={showDebugUI}
+        setShowDebugUI={setShowDebugUI}
+        correctionMode={correctionMode}
+        setCorrectionMode={setCorrectionMode}
+        theme={theme}
+        setTheme={setTheme}
+        voiceGender={voiceGender}
+        setVoiceGender={setVoiceGender}
       />
 
       <CustomProviderModal
@@ -333,6 +397,8 @@ const MandarinTutor = () => {
               message={msg}
               showTranslations={showTranslations}
               onSpeak={speak}
+              correctionMode={correctionMode}
+              voiceGender={voiceGender}
             />
           ))}
 
@@ -351,6 +417,7 @@ const MandarinTutor = () => {
         onSendMessage={sendMessage}
         speechError={speechError}
         speechDebugInfo={speechDebugInfo}
+        theme={theme}
       />
     </div>
   );

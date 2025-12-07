@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, HelpCircle } from 'lucide-react';
+import { Mic, MicOff, HelpCircle, Send } from 'lucide-react';
 
 export const InputArea = ({
   inputText,
@@ -9,10 +9,17 @@ export const InputArea = ({
   onToggleListening,
   onSendMessage,
   speechError,
-  speechDebugInfo
+  speechDebugInfo,
+  theme
 }) => {
+  const isDark = theme === 'dark';
+
   return (
-    <div className="bg-white border-t border-gray-200 p-4">
+    <div className={`border-t p-4 ${
+      isDark
+        ? 'bg-gray-800 border-gray-700'
+        : 'bg-white border-gray-200'
+    }`}>
       <div className="max-w-4xl mx-auto">
         {speechError && (
           <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" data-debug-ui>
@@ -40,7 +47,11 @@ export const InputArea = ({
                 }
               }}
               placeholder="输入中文... (Type in Chinese or use microphone)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none ${
+                isDark
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                  : 'border-gray-300'
+              }`}
               rows={2}
               disabled={isLoading}
             />
@@ -62,13 +73,16 @@ export const InputArea = ({
           <button
             onClick={onSendMessage}
             disabled={isLoading || !inputText.trim()}
-            className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
           >
-            发送
+            <Send size={20} />
+            Send
           </button>
         </div>
 
-        <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <div className={`mt-2 flex items-center gap-2 text-xs ${
+          isDark ? 'text-gray-400' : 'text-gray-500'
+        }`}>
           <HelpCircle size={14} />
           <span>
             {isListening

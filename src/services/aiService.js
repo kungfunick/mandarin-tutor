@@ -1,8 +1,10 @@
 /**
  * AI Service - Handles communication with different AI providers
+ * Enhanced with correction mode support
  */
 
-const createSystemPrompt = (difficulty) => `You are a Mandarin Chinese language tutor helping an English speaker practice conversation.
+const createSystemPrompt = (difficulty, correctionMode = false) => {
+  const basePrompt = `You are a Mandarin Chinese language tutor helping an English speaker practice conversation.
 
 Difficulty level: ${difficulty}
 
@@ -19,15 +21,31 @@ Guidelines:
 - Use vocabulary appropriate for ${difficulty} learners
 - Provide accurate pinyin with tone marks (ā á ǎ à)
 - Give natural English translations
-- Be encouraging and helpful
-- If user makes mistakes, gently correct them in your next response
+- Be encouraging and helpful`;
 
-Return ONLY the JSON object, no other text.`;
+  const correctionAddition = correctionMode ? `
+
+CORRECTION MODE ACTIVE:
+- Carefully analyze the user's Chinese for errors in grammar, word choice, or usage
+- In your "mandarin" field, highlight corrections using these formats:
+  * For errors: [error: 错误的词 → 正确的词]
+  * For good usage: [correct: 正确的用法]
+  * For suggestions: <correction>建议的说法</correction>
+- Keep corrections gentle and encouraging
+- Explain why in your response naturally
+- Examples:
+  * "你说的 [error: 我很喜欢吃 → 我很喜欢] 苹果。'吃' is not needed here!"
+  * "Great! [correct: 我昨天去了] is perfect past tense usage."
+- Don't overdo it - only highlight 1-2 corrections per response
+- Always be supportive and positive` : '';
+
+  return basePrompt + correctionAddition + '\n\nReturn ONLY the JSON object, no other text.';
+};
 
 /**
  * Call Claude API
  */
-export const callClaudeAPI = async (apiKey, conversationHistory, userInput, difficulty) => {
+export const callClaudeAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!apiKey) throw new Error('Claude API key not set');
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -40,7 +58,7 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: createSystemPrompt(difficulty),
+      system: createSystemPrompt(difficulty, correctionMode),
       messages: [
         ...conversationHistory.map(msg => ({
           role: msg.role,
@@ -63,11 +81,11 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
 /**
  * Call OpenAI API
  */
-export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, difficulty) => {
+export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!apiKey) throw new Error('OpenAI API key not set');
 
   const messages = [
-    { role: 'system', content: createSystemPrompt(difficulty) },
+    { role: 'system', content: createSystemPrompt(difficulty, correctionMode) },
     ...conversationHistory.map(msg => ({
       role: msg.role,
       content: msg.content
@@ -101,11 +119,11 @@ export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, diff
 /**
  * Call Gemini API
  */
-export const callGeminiAPI = async (apiKey, conversationHistory, userInput, difficulty) => {
+export const callGeminiAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!apiKey) throw new Error('Gemini API key not set');
 
   const contents = [
-    { role: 'user', parts: [{ text: createSystemPrompt(difficulty) }] },
+    { role: 'user', parts: [{ text: createSystemPrompt(difficulty, correctionMode) }] },
     ...conversationHistory.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
@@ -160,10 +178,10 @@ export const parseAIResponse = (responseText) => {
 /**
  * Call custom API provider
  */
-export const callCustomAPI = async (provider, conversationHistory, userInput, difficulty) => {
+export const callCustomAPI = async (provider, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!provider.apiUrl) throw new Error('Custom provider API URL not set');
 
-  const systemPrompt = createSystemPrompt(difficulty);
+  const systemPrompt = createSystemPrompt(difficulty, correctionMode);
 
   let requestBody;
   let headers = { 'Content-Type': 'application/json' };
@@ -238,6 +256,7 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
     url,
     format: provider.requestFormat,
     model: provider.model,
+    correctionMode,
     requestBody
   });
 
