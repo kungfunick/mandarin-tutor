@@ -1,0 +1,171 @@
+/**
+ * Authentication Context
+ * Handles user login, roles, and permissions
+ */
+
+import { createContext, useContext, useState, useEffect } from 'react';
+
+const AuthContext = createContext(null);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+// Mock user database (replace with real backend in production)
+const MOCK_USERS = [
+  {
+    id: '1',
+    username: 'admin',
+    password: 'admin123', // In production, use hashed passwords!
+    role: 'admin',
+    name: 'Admin User',
+    email: 'admin@mandarintutor.com'
+  },
+  {
+    id: '2',
+    username: 'teacher1',
+    password: 'teacher123',
+    role: 'teacher',
+    name: 'Teacher Zhang',
+    email: 'zhang@mandarintutor.com',
+    students: ['3', '4'] // IDs of assigned students
+  },
+  {
+    id: '3',
+    username: 'student1',
+    password: 'student123',
+    role: 'student',
+    name: 'Student Wang',
+    email: 'wang@mandarintutor.com',
+    teacherId: '2' // Assigned teacher
+  },
+  {
+    id: '4',
+    username: 'student2',
+    password: 'student123',
+    role: 'student',
+    name: 'Student Li',
+    email: 'li@mandarintutor.com',
+    teacherId: '2'
+  }
+];
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Check for saved session on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+      } catch (e) {
+        console.error('Error loading saved session:', e);
+        localStorage.removeItem('currentUser');
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  const login = (username, password) => {
+    // Find user in mock database
+    const foundUser = MOCK_USERS.find(
+      u => u.username === username && u.password === password
+    );
+
+    if (!foundUser) {
+      throw new Error('Invalid username or password');
+    }
+
+    // Remove password from stored user
+    const { password: _, ...userWithoutPassword } = foundUser;
+    
+    setUser(userWithoutPassword);
+    localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+    
+    return userWithoutPassword;
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('currentUser');
+  };
+
+  // Permission helpers
+  const hasPermission = (permission) => {
+    if (!user) return false;
+
+    const permissions = {
+      admin: {
+        canAccessDebug: true,
+        canConfigureAPI: true,
+        canViewAllUsers: true,
+        canManageStudyGuides: true,
+        canViewAllChats: true,
+        canChangeAllSettings: true,
+        canAssignTeachers: true
+      },
+      teacher: {
+        canAccessDebug: false,
+        canConfigureAPI: false,
+        canViewAllUsers: false,
+        canManageStudyGuides: true,
+        canViewAllChats: false, // Only assigned students
+        canChangeAllSettings: true,
+        canAssignTeachers: false,
+        canViewStudents: true,
+        canCreateStudyGuides: true
+      },
+      student: {
+        canAccessDebug: false,
+        canConfigureAPI: false,
+        canViewAllUsers: false,
+        canManageStudyGuides: false,
+        canViewAllChats: false, // Only own
+        canChangeAllSettings: false,
+        canChangeMicSettings: true,
+        canChangeVoiceSettings: true,
+        canViewOwnStudyGuide: true
+      }
+    };
+
+    return permissions[user.role]?.[permission] || false;
+  };
+
+  const getTeacher = (teacherId) => {
+    return MOCK_USERS.find(u => u.id === teacherId && u.role === 'teacher');
+  };
+
+  const getStudents = (teacherId) => {
+    return MOCK_USERS.filter(u => u.teacherId === teacherId);
+  };
+
+  const getAllUsers = () => {
+    if (user?.role !== 'admin') return [];
+    return MOCK_USERS.map(({ password, ...user }) => user);
+  };
+
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
+    hasPermission,
+    getTeacher,
+    getStudents,
+    getAllUsers,
+    isAdmin: user?.role === 'admin',
+    isTeacher: user?.role === 'teacher',
+    isStudent: user?.role === 'student'
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export default AuthContext;

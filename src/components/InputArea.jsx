@@ -13,11 +13,11 @@ export const InputArea = ({
   theme
 }) => {
   const isDark = theme === 'dark';
-
+  
   return (
     <div className={`border-t p-4 ${
-      isDark
-        ? 'bg-gray-800 border-gray-700'
+      isDark 
+        ? 'bg-gray-800 border-gray-700' 
         : 'bg-white border-gray-200'
     }`}>
       <div className="max-w-4xl mx-auto">
@@ -48,8 +48,8 @@ export const InputArea = ({
               }}
               placeholder="输入中文... (Type in Chinese or use microphone)"
               className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none ${
-                isDark
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                isDark 
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                   : 'border-gray-300'
               }`}
               rows={2}

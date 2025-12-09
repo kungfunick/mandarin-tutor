@@ -10,26 +10,26 @@ import { Volume2 } from 'lucide-react';
  */
 const parseCorrections = (text) => {
   if (!text) return { hasCorrections: false, elements: [{ type: 'text', content: text }] };
-
+  
   const elements = [];
   let hasCorrections = false;
-
+  
   // Pattern 1: [error: wrong → right]
   const errorPattern = /\[error:\s*([^→]+)\s*→\s*([^\]]+)\]/g;
   // Pattern 2: [correct: text]
   const correctPattern = /\[correct:\s*([^\]]+)\]/g;
   // Pattern 3: <correction>text</correction>
   const xmlPattern = /<correction>([^<]+)<\/correction>/g;
-
+  
   let lastIndex = 0;
   let match;
-
+  
   // Combine all patterns
   const combinedPattern = /(\[error:\s*([^→]+)\s*→\s*([^\]]+)\]|\[correct:\s*([^\]]+)\]|<correction>([^<]+)<\/correction>)/g;
-
+  
   while ((match = combinedPattern.exec(text)) !== null) {
     hasCorrections = true;
-
+    
     // Add text before the match
     if (match.index > lastIndex) {
       elements.push({
@@ -37,7 +37,7 @@ const parseCorrections = (text) => {
         content: text.substring(lastIndex, match.index)
       });
     }
-
+    
     // Determine which pattern matched
     if (match[0].startsWith('[error:')) {
       // Error correction
@@ -59,10 +59,10 @@ const parseCorrections = (text) => {
         content: match[5].trim()
       });
     }
-
+    
     lastIndex = match.index + match[0].length;
   }
-
+  
   // Add remaining text
   if (lastIndex < text.length) {
     elements.push({
@@ -70,7 +70,7 @@ const parseCorrections = (text) => {
       content: text.substring(lastIndex)
     });
   }
-
+  
   return { hasCorrections, elements: elements.length > 0 ? elements : [{ type: 'text', content: text }] };
 };
 
@@ -107,9 +107,9 @@ const CorrectionElement = ({ element }) => {
 
 export const MessageBubble = ({ message, showTranslations, onSpeak, correctionMode, voiceGender }) => {
   const isUser = message.role === 'user';
-
+  
   // Parse corrections if in correction mode and it's an assistant message
-  const parsed = correctionMode && !isUser
+  const parsed = correctionMode && !isUser 
     ? parseCorrections(message.mandarin)
     : { hasCorrections: false, elements: [{ type: 'text', content: message.mandarin }] };
 
@@ -136,7 +136,7 @@ export const MessageBubble = ({ message, showTranslations, onSpeak, correctionMo
                 message.mandarin
               )}
             </div>
-
+            
             {/* Pinyin */}
             {showTranslations && message.pinyin && (
               <p className={`text-sm italic mb-1 ${
@@ -145,7 +145,7 @@ export const MessageBubble = ({ message, showTranslations, onSpeak, correctionMo
                 {message.pinyin}
               </p>
             )}
-
+            
             {/* English translation */}
             {showTranslations && message.english && (
               <p className={`text-sm ${
@@ -154,7 +154,7 @@ export const MessageBubble = ({ message, showTranslations, onSpeak, correctionMo
                 {message.english}
               </p>
             )}
-
+            
             {/* Correction note */}
             {parsed.hasCorrections && (
               <div className="mt-2 pt-2 border-t border-gray-200">
@@ -164,7 +164,7 @@ export const MessageBubble = ({ message, showTranslations, onSpeak, correctionMo
               </div>
             )}
           </div>
-
+          
           {/* Speaker button */}
           {!isUser && (
             <button

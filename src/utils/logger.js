@@ -20,14 +20,14 @@ class Logger {
       info: console.info.bind(console),
       debug: console.debug.bind(console)
     };
-
+    
     // Don't hijack console by default - only when file logging is enabled
     this.consoleHijacked = false;
-
+    
     // Load settings from localStorage
     this.loadSettings();
   }
-
+  
   loadSettings() {
     try {
       const savedMaxFiles = localStorage.getItem('loggerMaxFiles');
@@ -42,16 +42,16 @@ class Logger {
       console.error('Error loading logger settings:', e);
     }
   }
-
+  
   setMaxLogFiles(count) {
     this.maxLogFiles = Math.min(Math.max(1, count), 10); // Clamp between 1 and 10
     localStorage.setItem('loggerMaxFiles', this.maxLogFiles.toString());
     this.originalConsole.info(`Max log files set to: ${this.maxLogFiles}`);
-
+    
     // Clean up old files if we reduced the limit
     this.cleanupOldLogFiles();
   }
-
+  
   cleanupOldLogFiles() {
     if (this.logFileHistory.length > this.maxLogFiles) {
       const toRemove = this.logFileHistory.length - this.maxLogFiles;
@@ -62,18 +62,18 @@ class Logger {
 
   setConsoleLogging(enabled) {
     this.consoleEnabled = enabled;
-
+    
     if (!enabled && this.consoleHijacked) {
       // Restore original console if we're turning off console logging
       this.restoreConsole();
     }
-
+    
     this.log('info', `Console logging ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   setFileLogging(enabled) {
     this.fileEnabled = enabled;
-
+    
     if (enabled && !this.consoleHijacked) {
       // Hijack console to capture everything
       this.hijackConsole();
@@ -82,7 +82,7 @@ class Logger {
       this.restoreConsole();
       this.log('info', 'File logging disabled');
     }
-
+    
     if (enabled) {
       // Clear previous session logs when enabling
       this.logs = [];
@@ -92,15 +92,15 @@ class Logger {
 
   hijackConsole() {
     if (this.consoleHijacked) return;
-
+    
     const self = this;
-
+    
     // Hijack all console methods
     ['log', 'error', 'warn', 'info', 'debug'].forEach(method => {
       console[method] = function(...args) {
         // Call original console method
         self.originalConsole[method](...args);
-
+        
         // Add to log file
         if (self.fileEnabled) {
           const timestamp = new Date().toISOString();
@@ -128,18 +128,18 @@ class Logger {
         }
       };
     });
-
+    
     this.consoleHijacked = true;
     this.originalConsole.info('✅ Console hijacking enabled - all output will be captured in log file');
   }
 
   restoreConsole() {
     if (!this.consoleHijacked) return;
-
+    
     ['log', 'error', 'warn', 'info', 'debug'].forEach(method => {
       console[method] = this.originalConsole[method];
     });
-
+    
     this.consoleHijacked = false;
     this.originalConsole.info('Console restored to normal');
   }
@@ -248,23 +248,23 @@ ${'='.repeat(100)}
       entryCount: this.logs.length
     };
     this.logFileHistory.unshift(logEntry);
-
+    
     // Rotate if needed
     if (this.logFileHistory.length > this.maxLogFiles) {
       this.logFileHistory = this.logFileHistory.slice(0, this.maxLogFiles);
     }
-
+    
     // Save history
     localStorage.setItem('logFileHistory', JSON.stringify(this.logFileHistory));
 
     this.originalConsole.log('✅ Debug log file downloaded:', `${this.logs.length} entries`);
     this.originalConsole.log(`📁 Log history: ${this.logFileHistory.length}/${this.maxLogFiles} files`);
   }
-
+  
   getLogFileHistory() {
     return this.logFileHistory;
   }
-
+  
   clearLogHistory() {
     this.logFileHistory = [];
     localStorage.removeItem('logFileHistory');
@@ -278,7 +278,7 @@ ${'='.repeat(100)}
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
-
+    
     if (hours > 0) {
       return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
     } else if (minutes > 0) {

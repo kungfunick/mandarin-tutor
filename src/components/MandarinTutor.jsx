@@ -1,4 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { StudyGuidePanel } from './StudyGuidePanel';
+import { TeacherDashboard } from './TeacherDashboard';
+import { AdminPanel } from './AdminPanel';
 import { Header } from './Header';
 import { SettingsPanel } from './SettingsPanel';
 import { HistoryPanel } from './HistoryPanel';
@@ -38,6 +43,14 @@ const MandarinTutor = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomProviders, setShowCustomProviders] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Add auth
+  const { user, hasPermission } = useAuth();
+
+  // Add study guide state
+  const [showStudyGuide, setShowStudyGuide] = useState(false);
+  const [showTeacherDashboard, setShowTeacherDashboard] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   // Persistent settings using custom hook
   const [aiProvider, setAiProvider] = useLocalStorage('aiProvider', 'claude');
@@ -338,7 +351,10 @@ const MandarinTutor = () => {
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
         onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
-        showDebugButton={showDebugUI}
+        onToggleStudyGuide={user?.role === 'student' ? () => setShowStudyGuide(!showStudyGuide) : undefined}
+        onToggleTeacherDashboard={user?.role === 'teacher' ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
+        onToggleAdminPanel={user?.role === 'admin' ? () => setShowAdminPanel(!showAdminPanel) : undefined}
+        showDebugButton={hasPermission('canAccessDebug')}
         theme={theme}
       />
 
@@ -353,6 +369,43 @@ const MandarinTutor = () => {
         onLoadConversation={loadConversation}
         onDeleteConversation={deleteConversation}
       />
+
+      {/* Study Guide Panel */}
+      {showStudyGuide && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl z-50 overflow-hidden">
+          <div className="h-full flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Study Guide</h2>
+              <button
+                onClick={() => setShowStudyGuide(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <StudyGuidePanel
+                conversationHistory={conversationHistory}
+                onClose={() => setShowStudyGuide(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Dashboard */}
+      {showTeacherDashboard && user?.role === 'teacher' && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
+          <TeacherDashboard onClose={() => setShowTeacherDashboard(false)} />
+        </div>
+      )}
+
+      {/* Admin Panel */}
+      {showAdminPanel && user?.role === 'admin' && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
+          <AdminPanel onClose={() => setShowAdminPanel(false)} />
+        </div>
+      )}
 
       <SettingsPanel
         show={showSettings}

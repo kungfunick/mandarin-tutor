@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
 import { Download, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import logger from '../utils/logger';
 
 export const AdvancedSettings = ({ show, onClose }) => {
+  const { hasPermission } = useAuth();
+
+  // Only render if user has permission
+  if (!hasPermission('canAccessDebug')) {
+    return null;
+  }
+
   const [fileLogging, setFileLogging] = useState(false);
   const [logCount, setLogCount] = useState(0);
   const [expandedSection, setExpandedSection] = useState(null);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import logger from '../utils/logger';
+import { processSpeechWithPunctuation, createPauseDetector } from '../utils/punctuation';
 
 /**
  * Custom hook for speech recognition functionality
@@ -27,6 +28,8 @@ export const useSpeechRecognition = () => {
   const noiseGateThresholdRef = useRef(15); // Adjustable noise gate
   const minSpeechLevelRef = useRef(25); // Minimum level to consider as speech
   const significantSpeechDetectedRef = useRef(false); // Track last transcript separately
+  const pauseDetectorRef = useRef(createPauseDetector());
+  const previousTranscriptRef = useRef('');
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -56,6 +59,8 @@ export const useSpeechRecognition = () => {
         accumulatedTranscriptRef.current = '';
         restartCountRef.current = 0;
         significantSpeechDetectedRef.current = false;
+        previousTranscriptRef.current = '';
+        pauseDetectorRef.current.reset();
       }
 
       const elapsed = sessionStartTimeRef.current ? (Date.now() - sessionStartTimeRef.current) / 1000 : 0;
@@ -124,8 +129,13 @@ export const useSpeechRecognition = () => {
 
       // Build transcript from current segment
       let currentSegmentTranscript = '';
+      let isFinalResult = false;
+      
       for (let i = 0; i < event.results.length; i++) {
         currentSegmentTranscript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          isFinalResult = true;
+        }
       }
 
       // Log all results and alternatives
@@ -143,12 +153,25 @@ export const useSpeechRecognition = () => {
         // Mark that we got significant speech
         significantSpeechDetectedRef.current = true;
 
+        // Record speech activity for pause detection
+        pauseDetectorRef.current.recordSpeech();
+
+        // Process with intelligent punctuation
+        const pauseDetected = pauseDetectorRef.current.isPaused();
+        const processedTranscript = processSpeechWithPunctuation(
+          currentSegmentTranscript,
+          isFinalResult,
+          previousTranscriptRef.current,
+          pauseDetected
+        );
+
         // Save this transcript immediately for use in onspeechend
-        lastTranscriptRef.current = currentSegmentTranscript;
+        lastTranscriptRef.current = processedTranscript;
+        previousTranscriptRef.current = processedTranscript;
 
         // Always show combined transcript (accumulated + current)
-        const displayTranscript = accumulatedTranscriptRef.current + currentSegmentTranscript;
-        console.log(`✅ Display: "${displayTranscript}" (accumulated: "${accumulatedTranscriptRef.current}", current: "${currentSegmentTranscript}")`);
+        const displayTranscript = accumulatedTranscriptRef.current + processedTranscript;
+        console.log(`✅ Display: "${displayTranscript}" (accumulated: "${accumulatedTranscriptRef.current}", current: "${processedTranscript}")`);
 
         setTranscript(displayTranscript);
 

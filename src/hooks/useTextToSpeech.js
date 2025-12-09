@@ -37,30 +37,30 @@ export const useTextToSpeech = () => {
 
     // Find Chinese voice matching gender preference
     const genderPreference = options.gender || 'female';
-
+    
     // Try to find a voice matching the gender preference
     let selectedVoice = null;
-
+    
     // First, try to find a Chinese voice with the preferred gender
     const chineseVoices = voices.filter(voice => voice.lang.startsWith('zh'));
-
+    
     if (chineseVoices.length > 0) {
       // Try to match gender by voice name (common patterns)
       const preferredVoice = chineseVoices.find(voice => {
         const name = voice.name.toLowerCase();
         if (genderPreference === 'female') {
-          return name.includes('female') || name.includes('woman') ||
-                 name.includes('ting') || name.includes('huihui') ||
+          return name.includes('female') || name.includes('woman') || 
+                 name.includes('ting') || name.includes('huihui') || 
                  name.includes('yaoyao') || !name.includes('male');
         } else {
-          return name.includes('male') || name.includes('man') ||
+          return name.includes('male') || name.includes('man') || 
                  name.includes('kangkang') || name.includes('yunyang');
         }
       });
-
+      
       selectedVoice = preferredVoice || chineseVoices[0];
     }
-
+    
     if (selectedVoice) {
       utterance.voice = selectedVoice;
       console.log(`🔊 Using voice: ${selectedVoice.name} (requested: ${genderPreference})`);

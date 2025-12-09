@@ -43,49 +43,13 @@ CORRECTION MODE ACTIVE:
 };
 
 /**
- * Call Claude API
+ * Call Claude API (via proxy in development, direct in production)
  */
 export const callClaudeAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!apiKey) throw new Error('Claude API key not set');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: createSystemPrompt(difficulty, correctionMode),
-      messages: [
-        ...conversationHistory.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        { role: 'user', content: userInput }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Claude API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return data.content[0].text;
-};
-
-/**
- * Call OpenAI API
- */
-export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
-  if (!apiKey) throw new Error('OpenAI API key not set');
-
+  const systemPrompt = createSystemPrompt(difficulty, correctionMode);
   const messages = [
-    { role: 'system', content: createSystemPrompt(difficulty, correctionMode) },
     ...conversationHistory.map(msg => ({
       role: msg.role,
       content: msg.content
@@ -93,66 +57,191 @@ export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: messages,
-      max_tokens: 1024,
-      temperature: 0.7
-    })
-  });
+  // Use proxy server in development to avoid CORS issues
+  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
+  
+  if (proxyUrl) {
+    // Development mode: use proxy server
+    console.log('🔄 Using proxy server:', proxyUrl);
+    const response = await fetch(`${proxyUrl}/api/claude`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        apiKey,
+        messages,
+        systemPrompt
+      })
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Claude API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.content[0].text;
+  } else {
+    // Production mode: direct API call (requires backend proxy)
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: messages
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Claude API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.content[0].text;
   }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
 };
 
 /**
- * Call Gemini API
+ * Call OpenAI API (via proxy in development)
+ */
+export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
+  if (!apiKey) throw new Error('OpenAI API key not set');
+
+  const systemPrompt = createSystemPrompt(difficulty, correctionMode);
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...conversationHistory.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })),
+    { role: 'user', content: userInput }
+  ];
+
+  // Use proxy server in development
+  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
+  
+  if (proxyUrl) {
+    console.log('🔄 Using proxy server for OpenAI');
+    const response = await fetch(`${proxyUrl}/api/openai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        messages,
+        systemPrompt
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } else {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: messages,
+        max_tokens: 1024,
+        temperature: 0.7
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  }
+};
+
+/**
+ * Call Gemini API (via proxy in development)
  */
 export const callGeminiAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!apiKey) throw new Error('Gemini API key not set');
 
-  const contents = [
-    { role: 'user', parts: [{ text: createSystemPrompt(difficulty, correctionMode) }] },
+  const systemPrompt = createSystemPrompt(difficulty, correctionMode);
+  const messages = [
     ...conversationHistory.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
+      role: msg.role,
+      content: msg.content
     })),
-    { role: 'user', parts: [{ text: userInput }] }
+    { role: 'user', content: userInput }
   ];
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-    {
+  // Use proxy server in development
+  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
+  
+  if (proxyUrl) {
+    console.log('🔄 Using proxy server for Gemini');
+    const response = await fetch(`${proxyUrl}/api/gemini`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: contents,
-        generationConfig: {
-          maxOutputTokens: 1024,
-          temperature: 0.7
-        }
+        apiKey,
+        messages,
+        systemPrompt
       })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${error}`);
     }
-  );
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  } else {
+    const contents = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      ...conversationHistory.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      })),
+      { role: 'user', parts: [{ text: userInput }] }
+    ];
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: contents,
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: 0.7
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
   }
-
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
 };
 
 /**
