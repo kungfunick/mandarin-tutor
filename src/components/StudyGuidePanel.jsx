@@ -9,7 +9,7 @@ import { useStudyGuide } from '../contexts/StudyGuideContext';
 import {
   BookOpen, Target, TrendingUp, Award, CheckCircle, Circle,
   Brain, MessageSquare, Star, AlertCircle, ChevronRight, Plus,
-  Link as LinkIcon, AlertTriangle, Bell
+  Link as LinkIcon, AlertTriangle, Bell, BarChart3, Lightbulb, FileText, X
 } from 'lucide-react';
 
 export const StudyGuidePanel = ({ conversationHistory, onClose }) => {
@@ -84,50 +84,73 @@ export const StudyGuidePanel = ({ conversationHistory, onClose }) => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-6 border-b">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <BookOpen className="mr-2 text-red-600" size={28} />
-              Study Guide
-            </h2>
-            {teacher && (
-              <p className="text-sm text-gray-600 mt-1">
-                Teacher: {teacher.name}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleRefreshGuide}
-            disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm"
-          >
-            {loading ? 'Updating...' : 'Refresh'}
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
-          {['overview', 'goals', 'recommendations', 'materials', 'areasToImprove', 'announcements', 'observations'].map((tab) => (
+    <div className="flex flex-col h-full bg-white">
+      {/* Mobile-First Header */}
+      <div className="flex-shrink-0 p-4 border-b bg-gradient-to-r from-red-50 to-pink-50">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center">
+            <BookOpen className="mr-2 text-red-600" size={24} />
+            <span className="hidden sm:inline">Study Guide</span>
+            <span className="sm:hidden">Study</span>
+          </h2>
+          <div className="flex items-center space-x-2">
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                activeTab === tab
-                  ? 'bg-white text-red-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+              onClick={handleRefreshGuide}
+              disabled={loading}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-xs font-medium flex-shrink-0"
+            >
+              {loading ? '...' : 'Refresh'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
+              title="Close"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+          </div>
+        </div>
+        {teacher && (
+          <p className="text-xs text-gray-600 mt-2 ml-8">
+            Teacher: {teacher.name}
+          </p>
+        )}
+      </div>
+
+      {/* Icon Navigation - Mobile Optimized - NO SCROLLBAR */}
+      <div className="flex-shrink-0 flex border-b bg-white shadow-sm">
+        {[
+          { id: 'overview', icon: BarChart3, label: 'Overview', short: 'Over', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-600' },
+          { id: 'goals', icon: Target, label: 'Goals', short: 'Goals', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-600' },
+          { id: 'recommendations', icon: Lightbulb, label: 'Recs', short: 'Recs', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-600' },
+          { id: 'materials', icon: LinkIcon, label: 'Materials', short: 'Mats', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-600' },
+          { id: 'areasToImprove', icon: AlertTriangle, label: 'Improve', short: 'Impv', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-600' },
+          { id: 'announcements', icon: Bell, label: 'News', short: 'News', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-600' },
+          { id: 'observations', icon: FileText, label: 'Notes', short: 'Note', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-600' }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-2 py-3 flex flex-col items-center justify-center transition-all border-b-2 ${
+                isActive
+                  ? `${tab.color} ${tab.border} ${tab.bg}`
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
-              {tab === 'areasToImprove' ? 'Improve' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              <Icon size={18} className="mb-1 flex-shrink-0" />
+              <span className="text-[10px] sm:text-xs font-medium leading-tight hidden sm:block">{tab.label}</span>
+              <span className="text-[10px] font-medium leading-tight sm:hidden">{tab.short}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4">
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Progress Cards */}

@@ -30,8 +30,8 @@ const MOCK_USERS = [
     username: 'teacher1',
     password: 'teacher123',
     role: 'teacher',
-    name: 'Teacher Zhang',
-    email: 'zhang@mandarintutor.com',
+    name: 'Teacher Liwen',
+    email: 'liwen@mandarintutor.com',
     students: ['3', '4'] // IDs of assigned students
   },
   {
@@ -85,10 +85,10 @@ export const AuthProvider = ({ children }) => {
 
     // Remove password from stored user
     const { password: _, ...userWithoutPassword } = foundUser;
-    
+
     setUser(userWithoutPassword);
     localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-    
+
     return userWithoutPassword;
   };
 
@@ -151,6 +151,35 @@ export const AuthProvider = ({ children }) => {
     return MOCK_USERS.map(({ password, ...user }) => user);
   };
 
+  // Admin functions
+  const updateUser = (userId, updates) => {
+    if (user?.role !== 'admin') return false;
+    // In production, this would update the database
+    console.log('Update user:', userId, updates);
+    return true;
+  };
+
+  const deleteUser = (userId) => {
+    if (user?.role !== 'admin') return false;
+    // In production, this would delete from database
+    console.log('Delete user:', userId);
+    return true;
+  };
+
+  const resetPassword = (userId, newPassword) => {
+    if (user?.role !== 'admin') return false;
+    // In production, this would hash and update password
+    console.log('Reset password for:', userId);
+    return true;
+  };
+
+  const updatePermissions = (userId, permissions) => {
+    if (user?.role !== 'admin') return false;
+    // In production, this would update user permissions
+    console.log('Update permissions:', userId, permissions);
+    return true;
+  };
+
   const value = {
     user,
     loading,
@@ -160,6 +189,10 @@ export const AuthProvider = ({ children }) => {
     getTeacher,
     getStudents,
     getAllUsers,
+    updateUser,
+    deleteUser,
+    resetPassword,
+    updatePermissions,
     isAdmin: user?.role === 'admin',
     isTeacher: user?.role === 'teacher',
     isStudent: user?.role === 'student'
