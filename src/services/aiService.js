@@ -62,6 +62,7 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
 
   if (isDevelopment) {
     // Development mode: use proxy server
+    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
     console.log('🔄 Using proxy server:', proxyUrl);
     const response = await fetch(`${proxyUrl}/api/claude`, {
       method: 'POST',
@@ -84,15 +85,17 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
     return data.content[0].text;
   } else {
     // Production mode: use Vercel serverless function
+    // API key is stored server-side in environment variables
+    console.log('🌐 Using Vercel serverless API (server-side API key)');
     const response = await fetch('/api/claude', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        apiKey,
         messages,
         systemPrompt
+        // Note: apiKey is NOT sent - it's stored server-side!
       })
     });
 
@@ -122,10 +125,11 @@ export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  // Use proxy server in development to avoid CORS issues
+  // Use proxy server in development
   const isDevelopment = import.meta.env.DEV;
 
   if (isDevelopment) {
+    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
     console.log('🔄 Using proxy server for OpenAI');
     const response = await fetch(`${proxyUrl}/api/openai`, {
       method: 'POST',
@@ -185,9 +189,10 @@ export const callGeminiAPI = async (apiKey, conversationHistory, userInput, diff
   ];
 
   // Use proxy server in development
-  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
+  const isDevelopment = import.meta.env.DEV;
 
-  if (proxyUrl) {
+  if (isDevelopment) {
+    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
     console.log('🔄 Using proxy server for Gemini');
     const response = await fetch(`${proxyUrl}/api/gemini`, {
       method: 'POST',

@@ -1,6 +1,7 @@
 /**
  * Vercel Serverless Function - Claude API Proxy
  * This proxies requests to Anthropic's API to avoid CORS issues
+ * Uses CLAUDE_API_KEY from Vercel environment variables
  */
 
 export default async function handler(req, res) {
@@ -19,10 +20,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey, messages, systemPrompt } = req.body;
+    const { messages, systemPrompt } = req.body;
+
+    // Get API key from environment variable (server-side only)
+    // This is more secure than passing it from the client
+    const apiKey = process.env.CLAUDE_API_KEY;
 
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      console.error('CLAUDE_API_KEY not set in environment variables');
+      return res.status(500).json({
+        error: 'Server configuration error',
+        message: 'API key not configured on server'
+      });
     }
 
     console.log('Proxying request to Claude API...');
