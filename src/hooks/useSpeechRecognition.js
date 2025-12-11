@@ -10,7 +10,11 @@ export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState({
+  // debugInfo as a simple string for compatibility with InputArea component
+  const [debugInfo, setDebugInfo] = useState('idle');
+  
+  // Extended debug data stored separately (not passed to UI)
+  const [extendedDebug, setExtendedDebug] = useState({
     status: 'idle',
     lastResult: '',
     confidence: 0,
@@ -55,13 +59,15 @@ export const useSpeechRecognition = () => {
       setIsListening(true);
       setError(null);
       resultsRef.current = [];
-      setDebugInfo(prev => ({ ...prev, status: 'listening' }));
+      setDebugInfo('listening');
+      setExtendedDebug(prev => ({ ...prev, status: 'listening' }));
     };
 
     recognition.onend = () => {
       console.log('🔇 Speech recognition ended');
       setIsListening(false);
-      setDebugInfo(prev => ({ ...prev, status: 'stopped' }));
+      setDebugInfo('stopped');
+      setExtendedDebug(prev => ({ ...prev, status: 'stopped' }));
       
       // Clear any pending timeouts
       if (silenceTimeoutRef.current) {
@@ -74,7 +80,8 @@ export const useSpeechRecognition = () => {
       
       // Don't show error for expected cases
       if (event.error === 'no-speech') {
-        setDebugInfo(prev => ({ ...prev, status: 'no speech detected' }));
+        setDebugInfo('no speech detected');
+        setExtendedDebug(prev => ({ ...prev, status: 'no speech detected' }));
         return;
       }
       if (event.error === 'aborted') {
@@ -83,7 +90,8 @@ export const useSpeechRecognition = () => {
       
       setError(`Recognition error: ${event.error}`);
       setIsListening(false);
-      setDebugInfo(prev => ({ ...prev, status: `error: ${event.error}` }));
+      setDebugInfo(`error: ${event.error}`);
+      setExtendedDebug(prev => ({ ...prev, status: `error: ${event.error}` }));
     };
 
     recognition.onresult = (event) => {
@@ -114,7 +122,11 @@ export const useSpeechRecognition = () => {
       }
 
       // Update debug info with alternatives
-      setDebugInfo(prev => ({
+      const confidenceStr = allAlternatives[0]?.confidence 
+        ? ` (${Math.round(allAlternatives[0].confidence * 100)}%)`
+        : '';
+      setDebugInfo(`processing: ${finalTranscript || interimTranscript}${confidenceStr}`);
+      setExtendedDebug(prev => ({
         ...prev,
         status: 'processing',
         lastResult: finalTranscript || interimTranscript,
@@ -154,12 +166,14 @@ export const useSpeechRecognition = () => {
 
     recognition.onspeechstart = () => {
       console.log('🗣️ Speech detected');
-      setDebugInfo(prev => ({ ...prev, status: 'speech detected' }));
+      setDebugInfo('speech detected');
+      setExtendedDebug(prev => ({ ...prev, status: 'speech detected' }));
     };
 
     recognition.onspeechend = () => {
       console.log('🔇 Speech ended');
-      setDebugInfo(prev => ({ ...prev, status: 'speech ended' }));
+      setDebugInfo('speech ended');
+      setExtendedDebug(prev => ({ ...prev, status: 'speech ended' }));
     };
 
     return recognition;
@@ -225,7 +239,8 @@ export const useSpeechRecognition = () => {
   const resetTranscript = useCallback(() => {
     setTranscript('');
     resultsRef.current = [];
-    setDebugInfo(prev => ({ 
+    setDebugInfo('idle');
+    setExtendedDebug(prev => ({ 
       ...prev, 
       lastResult: '', 
       confidence: 0,
@@ -247,12 +262,12 @@ export const useSpeechRecognition = () => {
 
   // Get alternatives for the current result (useful for tone practice)
   const getAlternatives = useCallback(() => {
-    return debugInfo.alternatives;
-  }, [debugInfo.alternatives]);
+    return extendedDebug.alternatives;
+  }, [extendedDebug.alternatives]);
 
   // Check if a specific character/word was recognized (checks alternatives too)
   const checkForMatch = useCallback((target) => {
-    const alternatives = debugInfo.alternatives || [];
+    const alternatives = extendedDebug.alternatives || [];
     
     // Check main transcript
     if (transcript.includes(target)) {
@@ -271,7 +286,7 @@ export const useSpeechRecognition = () => {
     }
     
     return { matched: false, confidence: 'none', source: null };
-  }, [transcript, debugInfo.alternatives]);
+  }, [transcript, extendedDebug.alternatives]);
 
   // Cleanup on unmount
   useEffect(() => {
