@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, CheckCircle } from 'lucide-react';
+import { Plus, CheckCircle, Server, Cloud } from 'lucide-react';
 
 export const SettingsPanel = ({
   show,
   aiProvider,
   setAiProvider,
-  claudeApiKey,
-  setClaudeApiKey,
-  openaiApiKey,
-  setOpenaiApiKey,
-  geminiApiKey,
-  setGeminiApiKey,
   difficulty,
   setDifficulty,
   showTranslations,
@@ -48,7 +42,6 @@ export const SettingsPanel = ({
   const handleDebugUIToggle = (enabled) => {
     setShowDebugUI(enabled);
 
-    // Toggle visibility of debug info panels
     const debugElements = document.querySelectorAll('[data-debug-ui]');
     debugElements.forEach(el => {
       el.style.display = enabled ? '' : 'none';
@@ -88,13 +81,13 @@ export const SettingsPanel = ({
             onChange={(e) => setAiProvider(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
           >
-            <optgroup label="Built-in Providers">
+            <optgroup label="Built-in Providers (Server-side API keys)">
               <option value="claude">Claude (Anthropic) - Best quality</option>
               <option value="openai">ChatGPT (OpenAI) - GPT-4o</option>
               <option value="gemini">Gemini (Google) - Free tier</option>
             </optgroup>
             {customProviders.length > 0 && (
-              <optgroup label="Custom Providers">
+              <optgroup label="Custom Providers (Client-side API keys)">
                 {customProviders.map(provider => (
                   <option key={provider.id} value={provider.id}>
                     {provider.label}
@@ -103,49 +96,60 @@ export const SettingsPanel = ({
               </optgroup>
             )}
           </select>
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-            <p className="font-medium text-blue-900">{currentProvider.name}</p>
-            <p className="text-blue-700">Model: {currentProvider.model}</p>
-            <p className="text-blue-700">Cost: {currentProvider.cost}</p>
-            {!currentProvider.isCustom && (
-              <p className="text-blue-600 text-xs mt-1">Get API key: {currentProvider.url}</p>
-            )}
-            {currentProvider.isCustom && (
-              <p className="text-blue-600 text-xs mt-1">Custom endpoint: {currentProvider.url}</p>
+          
+          {/* Provider Info Box */}
+          <div className={`mt-2 p-3 rounded-lg text-sm ${
+            isBuiltInProvider 
+              ? 'bg-green-50 border border-green-200' 
+              : 'bg-blue-50 border border-blue-200'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              {isBuiltInProvider ? (
+                <Server size={16} className="text-green-600" />
+              ) : (
+                <Cloud size={16} className="text-blue-600" />
+              )}
+              <p className={`font-medium ${isBuiltInProvider ? 'text-green-900' : 'text-blue-900'}`}>
+                {currentProvider.name}
+              </p>
+            </div>
+            <p className={isBuiltInProvider ? 'text-green-700' : 'text-blue-700'}>
+              Model: {currentProvider.model}
+            </p>
+            {isBuiltInProvider ? (
+              <>
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-green-200">
+                  <CheckCircle size={16} className="text-green-600" />
+                  <span className="text-green-800 font-medium">API key configured on server</span>
+                </div>
+                <p className="text-green-600 text-xs mt-1">
+                  No manual configuration required - ready to use!
+                </p>
+              </>
+            ) : (
+              <p className="text-blue-600 text-xs mt-1">
+                Custom endpoint: {currentProvider.url}
+              </p>
             )}
           </div>
         </div>
 
-        {/* API Key Status - Built-in providers use server-side keys */}
-        {isBuiltInProvider && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm font-medium text-green-900 flex items-center gap-2">
-              <CheckCircle size={16} />
-              API key configured on server
-            </p>
-            <p className="text-xs text-green-700 mt-1">
-              No manual configuration required
-            </p>
-          </div>
-        )}
+        {/* Theme Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Theme
+          </label>
+          <select
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+          >
+            <option value="standard">Standard (Light)</option>
+            <option value="dark">Dark Mode</option>
+          </select>
+        </div>
 
-        {/* Only show API key input for custom providers */}
-        {!isBuiltInProvider && currentProvider.isCustom && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {currentProvider.name} API Key (saved locally)
-            </label>
-            <input
-              type="password"
-              value={claudeApiKey} // This should be dynamic based on provider
-              onChange={(e) => setClaudeApiKey(e.target.value)}
-              placeholder="Enter API key..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
-          </div>
-        )}
-
-        {/* Rest of settings remain the same */}
+        {/* Difficulty Level */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Difficulty Level
@@ -161,41 +165,38 @@ export const SettingsPanel = ({
           </select>
         </div>
 
-        <div>
+        {/* Toggle Options */}
+        <div className="space-y-3">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={showTranslations}
               onChange={(e) => setShowTranslations(e.target.checked)}
-              className="w-4 h-4"
+              className="w-4 h-4 rounded text-red-600"
             />
             <span className="text-sm font-medium text-gray-700">
               Show English translations
             </span>
           </label>
-        </div>
 
-        <div>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={correctionMode}
               onChange={(e) => setCorrectionMode(e.target.checked)}
-              className="w-4 h-4"
+              className="w-4 h-4 rounded text-red-600"
             />
             <span className="text-sm font-medium text-gray-700">
               Correction Mode (highlight mistakes)
             </span>
           </label>
-        </div>
 
-        <div>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={showDebugUI}
               onChange={(e) => handleDebugUIToggle(e.target.checked)}
-              className="w-4 h-4"
+              className="w-4 h-4 rounded text-red-600"
             />
             <span className="text-sm font-medium text-gray-700">
               Show Debug UI
@@ -203,6 +204,7 @@ export const SettingsPanel = ({
           </label>
         </div>
 
+        {/* Voice Settings */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Voice Gender
@@ -217,38 +219,45 @@ export const SettingsPanel = ({
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Noise Gate Threshold: {noiseGate}
-          </label>
-          <input
-            type="range"
-            min="5"
-            max="30"
-            value={noiseGate}
-            onChange={(e) => handleNoiseGateChange(Number(e.target.value))}
-            className="w-full"
-          />
-          <p className="text-xs text-gray-600 mt-1">
-            Lower = picks up quieter sounds (may pick up background noise)
-          </p>
-        </div>
+        {/* Microphone Settings */}
+        <div className="pt-4 border-t border-yellow-300">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3">Microphone Settings</h4>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Noise Gate Threshold: {noiseGate}
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="30"
+                value={noiseGate}
+                onChange={(e) => handleNoiseGateChange(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Lower = picks up quieter sounds (may pick up background noise)
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Minimum Speech Level: {minSpeech}
-          </label>
-          <input
-            type="range"
-            min="15"
-            max="50"
-            value={minSpeech}
-            onChange={(e) => handleMinSpeechChange(Number(e.target.value))}
-            className="w-full"
-          />
-          <p className="text-xs text-gray-600 mt-1">
-            Minimum volume to be considered speech
-          </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Minimum Speech Level: {minSpeech}
+              </label>
+              <input
+                type="range"
+                min="15"
+                max="50"
+                value={minSpeech}
+                onChange={(e) => handleMinSpeechChange(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Minimum volume to be considered speech
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

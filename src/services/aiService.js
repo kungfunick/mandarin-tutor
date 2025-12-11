@@ -1,6 +1,6 @@
 /**
  * AI Service - Handles communication with different AI providers
- * Enhanced with correction mode support
+ * Uses server-side API keys only - no client-side key storage
  */
 
 const createSystemPrompt = (difficulty, correctionMode = false) => {
@@ -43,10 +43,10 @@ CORRECTION MODE ACTIVE:
 };
 
 /**
- * Call Claude API (via proxy in development, direct in production)
+ * Call Claude API via server-side proxy (API key stored on server)
  */
-export const callClaudeAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
-  if (!apiKey) throw new Error('Claude API key not set');
+export const callClaudeAPI = async (_, conversationHistory, userInput, difficulty, correctionMode = false) => {
+  // Note: First parameter (_) is ignored - API key is server-side only
 
   const systemPrompt = createSystemPrompt(difficulty, correctionMode);
   const messages = [
@@ -57,64 +57,48 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  // Use proxy server in development to avoid CORS issues
-  const isDevelopment = import.meta.env.DEV;
+  // Always use server-side API endpoint
+  // In development, this goes to the proxy server
+  // In production, this goes to Vercel serverless function
+  const apiUrl = import.meta.env.DEV 
+    ? (import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001') + '/api/claude'
+    : '/api/claude';
 
-  if (isDevelopment) {
-    // Development mode: use proxy server
-    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
-    console.log('🔄 Using proxy server:', proxyUrl);
-    const response = await fetch(`${proxyUrl}/api/claude`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        apiKey,
-        messages,
-        systemPrompt
-      })
-    });
+  console.log('🔄 Calling Claude API via server proxy:', apiUrl);
+  
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messages,
+      systemPrompt
+      // Note: No API key sent - it's stored server-side!
+    })
+  });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${error}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorData;
+    try {
+      errorData = JSON.parse(errorText);
+    } catch {
+      errorData = { error: errorText };
     }
-
-    const data = await response.json();
-    return data.content[0].text;
-  } else {
-    // Production mode: use Vercel serverless function
-    // API key is stored server-side in environment variables
-    console.log('🌐 Using Vercel serverless API (server-side API key)');
-    const response = await fetch('/api/claude', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages,
-        systemPrompt
-        // Note: apiKey is NOT sent - it's stored server-side!
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    return data.content[0].text;
+    
+    console.error('Claude API Error:', response.status, errorData);
+    throw new Error(errorData.message || errorData.error || `Claude API error: ${response.status}`);
   }
+
+  const data = await response.json();
+  return data.content[0].text;
 };
 
 /**
- * Call OpenAI API (via proxy in development)
+ * Call OpenAI API via server-side proxy
  */
-export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
-  if (!apiKey) throw new Error('OpenAI API key not set');
-
+export const callOpenAIAPI = async (_, conversationHistory, userInput, difficulty, correctionMode = false) => {
   const systemPrompt = createSystemPrompt(difficulty, correctionMode);
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -125,60 +109,34 @@ export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  // Use proxy server in development
-  const isDevelopment = import.meta.env.DEV;
+  const apiUrl = import.meta.env.DEV 
+    ? (import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001') + '/api/openai'
+    : '/api/openai';
 
-  if (isDevelopment) {
-    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
-    console.log('🔄 Using proxy server for OpenAI');
-    const response = await fetch(`${proxyUrl}/api/openai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey,
-        messages,
-        systemPrompt
-      })
-    });
+  console.log('🔄 Calling OpenAI API via server proxy');
+  
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages,
+      systemPrompt
+    })
+  });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } else {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: messages,
-        max_tokens: 1024,
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenAI API error: ${response.status} - ${error}`);
   }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 };
 
 /**
- * Call Gemini API (via proxy in development)
+ * Call Gemini API via server-side proxy
  */
-export const callGeminiAPI = async (apiKey, conversationHistory, userInput, difficulty, correctionMode = false) => {
-  if (!apiKey) throw new Error('Gemini API key not set');
-
+export const callGeminiAPI = async (_, conversationHistory, userInput, difficulty, correctionMode = false) => {
   const systemPrompt = createSystemPrompt(difficulty, correctionMode);
   const messages = [
     ...conversationHistory.map(msg => ({
@@ -188,62 +146,28 @@ export const callGeminiAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  // Use proxy server in development
-  const isDevelopment = import.meta.env.DEV;
+  const apiUrl = import.meta.env.DEV 
+    ? (import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001') + '/api/gemini'
+    : '/api/gemini';
 
-  if (isDevelopment) {
-    const proxyUrl = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001';
-    console.log('🔄 Using proxy server for Gemini');
-    const response = await fetch(`${proxyUrl}/api/gemini`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey,
-        messages,
-        systemPrompt
-      })
-    });
+  console.log('🔄 Calling Gemini API via server proxy');
+  
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages,
+      systemPrompt
+    })
+  });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-  } else {
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      ...conversationHistory.map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      })),
-      { role: 'user', parts: [{ text: userInput }] }
-    ];
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: contents,
-          generationConfig: {
-            maxOutputTokens: 1024,
-            temperature: 0.7
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Gemini API error: ${response.status} - ${error}`);
   }
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
 };
 
 /**
@@ -267,7 +191,7 @@ export const parseAIResponse = (responseText) => {
 };
 
 /**
- * Call custom API provider
+ * Call custom API provider (still supports client-side keys for custom providers)
  */
 export const callCustomAPI = async (provider, conversationHistory, userInput, difficulty, correctionMode = false) => {
   if (!provider.apiUrl) throw new Error('Custom provider API URL not set');
@@ -277,7 +201,7 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
   let requestBody;
   let headers = { 'Content-Type': 'application/json' };
 
-  // Add auth header if API key exists
+  // Add auth header if API key exists (custom providers may need client-side keys)
   if (provider.apiKey) {
     if (provider.requestFormat === 'anthropic') {
       headers['x-api-key'] = provider.apiKey;
@@ -285,7 +209,6 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
     } else if (provider.requestFormat === 'openai') {
       headers['Authorization'] = `Bearer ${provider.apiKey}`;
     }
-    // For Gemini, API key goes in URL
   }
 
   // Build request based on format
@@ -333,7 +256,7 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
       ],
       max_tokens: 1024,
       temperature: 0.7,
-      stream: false  // Ensure streaming is disabled
+      stream: false
     };
   }
 
@@ -347,8 +270,7 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
     url,
     format: provider.requestFormat,
     model: provider.model,
-    correctionMode,
-    requestBody
+    correctionMode
   });
 
   const response = await fetch(url, {
@@ -363,7 +285,6 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
   }
 
   const data = await response.json();
-  console.log('Custom API Response:', data);
 
   // Parse response based on format
   try {
@@ -378,24 +299,20 @@ export const callCustomAPI = async (provider, conversationHistory, userInput, di
       }
       return data.candidates[0].content.parts[0].text;
     } else {
-      // OpenAI format - handle both standard and Ollama responses
+      // OpenAI format
       if (data.choices && data.choices[0] && data.choices[0].message) {
         return data.choices[0].message.content;
       } else if (data.message && data.message.content) {
-        // Some Ollama versions use this format
         return data.message.content;
       } else if (data.response) {
-        // Ollama's generate endpoint format
         return data.response;
       } else {
-        console.error('Unexpected response structure:', data);
-        throw new Error('Invalid OpenAI/Ollama response format. Response structure: ' + JSON.stringify(Object.keys(data)));
+        throw new Error('Invalid OpenAI/Ollama response format');
       }
     }
   } catch (parseError) {
     console.error('Error parsing custom API response:', parseError);
-    console.error('Full response:', data);
-    throw new Error(`Failed to parse API response: ${parseError.message}. Check console for details.`);
+    throw new Error(`Failed to parse API response: ${parseError.message}`);
   }
 };
 
@@ -407,23 +324,26 @@ export const getProviderInfo = (provider, customProviders = []) => {
     claude: {
       name: 'Claude (Anthropic)',
       model: 'Sonnet 4',
-      cost: '$0.01-0.05/conversation',
-      url: 'console.anthropic.com',
-      isCustom: false
+      cost: 'Server-side API key',
+      url: 'Configured on server',
+      isCustom: false,
+      requiresClientKey: false
     },
     openai: {
       name: 'ChatGPT (OpenAI)',
       model: 'GPT-4o',
-      cost: '$0.02-0.08/conversation',
-      url: 'platform.openai.com',
-      isCustom: false
+      cost: 'Server-side API key',
+      url: 'Configured on server',
+      isCustom: false,
+      requiresClientKey: false
     },
     gemini: {
       name: 'Gemini (Google)',
       model: 'Gemini 2.0 Flash',
-      cost: 'Free tier available',
-      url: 'makersuite.google.com',
-      isCustom: false
+      cost: 'Server-side API key',
+      url: 'Configured on server',
+      isCustom: false,
+      requiresClientKey: false
     }
   };
 
@@ -440,7 +360,8 @@ export const getProviderInfo = (provider, customProviders = []) => {
       model: customProvider.model || 'Custom Model',
       cost: 'Custom pricing',
       url: customProvider.apiUrl,
-      isCustom: true
+      isCustom: true,
+      requiresClientKey: true
     };
   }
 

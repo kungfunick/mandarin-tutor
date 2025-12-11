@@ -3,16 +3,17 @@
  * Manages student study guides with real database persistence
  */
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import {
-  getStudyGuide,
+  getStudyGuide as fetchStudyGuide,
   upsertStudyGuide,
   updateStudyGuideStats,
   getObservationsByStudent,
   getMaterialsForStudent,
   getImprovementsByStudent,
-  getAnnouncementsForStudent
+  getAnnouncementsForStudent,
+  addObservation as createObservation
 } from '../services/database';
 import { useStudyGuideRealtime } from '../hooks/useRealtime';
 
@@ -27,28 +28,30 @@ export const useStudyGuide = () => {
 };
 
 export const StudyGuideProvider = ({ children }) => {
-  const { userId, teacherId, isStudent } = useAuth();
+  const { userId, teacherId, isStudent, profile } = useAuth();
 
   const [studyGuide, setStudyGuide] = useState(null);
   const [observations, setObservations] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [improvements, setImprovements] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [allStudyGuides, setAllStudyGuides] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Subscribe to real-time updates
   useStudyGuideRealtime(userId, (payload) => {
-    if (payload.eventType === 'UPDATE') {
-      setStudyGuide(payload.new);
-    } else if (payload.eventType === 'INSERT') {
+    if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
       setStudyGuide(payload.new);
     }
   });
 
   // Load study guide data
   useEffect(() => {
-    if (!userId || !isStudent) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
 
     const loadStudyGuideData = async () => {
       try {
@@ -56,7 +59,7 @@ export const StudyGuideProvider = ({ children }) => {
         setError(null);
 
         // Load study guide
-        const guide = await getStudyGuide(userId);
+        const guide = await fetchStudyGuide(userId);
 
         // If no guide exists, create a default one
         if (!guide) {
@@ -77,17 +80,21 @@ export const StudyGuideProvider = ({ children }) => {
 
         // Load related data if student has a teacher
         if (teacherId) {
-          const [obs, mats, imps, anns] = await Promise.all([
-            getObservationsByStudent(userId),
-            getMaterialsForStudent(userId, teacherId),
-            getImprovementsByStudent(userId),
-            getAnnouncementsForStudent(teacherId)
-          ]);
+          try {
+            const [obs, mats, imps, anns] = await Promise.all([
+              getObservationsByStudent(userId).catch(() => []),
+              getMaterialsForStudent(userId, teacherId).catch(() => []),
+              getImprovementsByStudent(userId).catch(() => []),
+              getAnnouncementsForStudent(teacherId).catch(() => [])
+            ]);
 
-          setObservations(obs);
-          setMaterials(mats);
-          setImprovements(imps);
-          setAnnouncements(anns);
+            setObservations(obs || []);
+            setMaterials(mats || []);
+            setImprovements(imps || []);
+            setAnnouncements(anns || []);
+          } catch (err) {
+            console.error('Error loading related data:', err);
+          }
         }
       } catch (err) {
         console.error('Load study guide error:', err);
@@ -98,10 +105,94 @@ export const StudyGuideProvider = ({ children }) => {
     };
 
     loadStudyGuideData();
-  }, [userId, teacherId, isStudent]);
+  }, [userId, teacherId]);
 
-  // Update study guide stats after conversation
-  const updateStats = async (stats) => {
+  // Get study guide for a specific user (for teachers)
+  const getStudyGuide = useCallback((targetUserId) => {
+    if (targetUserId === userId) {
+      return studyGuide;
+    }
+    return allStudyGuides[targetUserId] || null;
+  }, [userId, studyGuide, allStudyGuides]);
+
+  // Get all study guides (for teachers)
+  const getAllStudyGuides = useCallback(() => {
+    return { [userId]: studyGuide, ...allStudyGuides };
+  }, [userId, studyGuide, allStudyGuides]);
+
+  // Generate study guide from conversation history
+  const generateStudyGuide = useCallback(async (targetUserId, conversationHistory) => {
+    try {
+      const guide = {
+        conversation_count: conversationHistory.length,
+        vocabulary_mastered: Math.floor(conversationHistory.length * 5),
+        fluency_score: Math.min(100, conversationHistory.length * 2),
+        strengths: ['Basic greetings', 'Simple sentences'],
+        weaknesses: [],
+        goals: [
+          { id: '1', title: 'Practice tones', description: 'Focus on the four tones', completed: false },
+          { id: '2', title: 'Learn 10 new words', description: 'Expand vocabulary', completed: false }
+        ],
+        recommendations: [
+          { title: 'Daily practice', description: 'Practice 15 minutes daily', category: 'general', priority: 'high' }
+        ]
+      };
+
+      const newGuide = await upsertStudyGuide(targetUserId, guide);
+      
+      if (targetUserId === userId) {
+        setStudyGuide(newGuide);
+      } else {
+        setAllStudyGuides(prev => ({ ...prev, [targetUserId]: newGuide }));
+      }
+      
+      return newGuide;
+    } catch (err) {
+      console.error('Generate study guide error:', err);
+      throw err;
+    }
+  }, [userId]);
+
+  // Add observation
+  const addObservation = useCallback(async (targetUserId, text) => {
+    try {
+      if (!profile?.id) throw new Error('Not authenticated');
+      
+      const observation = await createObservation(targetUserId, profile.id, text);
+      setObservations(prev => [observation, ...prev]);
+      return observation;
+    } catch (err) {
+      console.error('Add observation error:', err);
+      throw err;
+    }
+  }, [profile]);
+
+  // Complete goal
+  const completeGoal = useCallback(async (targetUserId, goalId) => {
+    try {
+      const guide = targetUserId === userId ? studyGuide : allStudyGuides[targetUserId];
+      if (!guide?.goals) return;
+
+      const goals = guide.goals.map(g => 
+        g.id === goalId 
+          ? { ...g, completed: true, completedAt: new Date().toISOString() }
+          : g
+      );
+
+      const updated = await updateStudyGuideStats(targetUserId, { goals });
+      
+      if (targetUserId === userId) {
+        setStudyGuide(updated);
+      } else {
+        setAllStudyGuides(prev => ({ ...prev, [targetUserId]: updated }));
+      }
+    } catch (err) {
+      console.error('Complete goal error:', err);
+    }
+  }, [userId, studyGuide, allStudyGuides]);
+
+  // Update study guide stats
+  const updateStats = useCallback(async (stats) => {
     try {
       if (!userId) return { success: false, error: 'Not authenticated' };
 
@@ -112,145 +203,56 @@ export const StudyGuideProvider = ({ children }) => {
       console.error('Update stats error:', err);
       return { success: false, error: err.message };
     }
-  };
-
-  // Increment conversation count
-  const incrementConversationCount = async () => {
-    try {
-      if (!studyGuide) return;
-
-      const newCount = (studyGuide.conversation_count || 0) + 1;
-      await updateStats({ conversation_count: newCount });
-    } catch (err) {
-      console.error('Increment conversation error:', err);
-    }
-  };
-
-  // Update vocabulary count
-  const updateVocabulary = async (count) => {
-    try {
-      await updateStats({ vocabulary_mastered: count });
-    } catch (err) {
-      console.error('Update vocabulary error:', err);
-    }
-  };
-
-  // Update fluency score
-  const updateFluency = async (score) => {
-    try {
-      await updateStats({ fluency_score: score });
-    } catch (err) {
-      console.error('Update fluency error:', err);
-    }
-  };
-
-  // Add strength
-  const addStrength = async (strength) => {
-    try {
-      if (!studyGuide) return;
-
-      const strengths = [...(studyGuide.strengths || []), strength];
-      await updateStats({ strengths });
-    } catch (err) {
-      console.error('Add strength error:', err);
-    }
-  };
-
-  // Add weakness
-  const addWeakness = async (weakness) => {
-    try {
-      if (!studyGuide) return;
-
-      const weaknesses = [...(studyGuide.weaknesses || []), weakness];
-      await updateStats({ weaknesses });
-    } catch (err) {
-      console.error('Add weakness error:', err);
-    }
-  };
-
-  // Update goals
-  const updateGoals = async (goals) => {
-    try {
-      await updateStats({ goals });
-    } catch (err) {
-      console.error('Update goals error:', err);
-    }
-  };
-
-  // Complete goal
-  const completeGoal = async (goalIndex) => {
-    try {
-      if (!studyGuide?.goals) return;
-
-      const goals = [...studyGuide.goals];
-      if (goals[goalIndex]) {
-        goals[goalIndex].completed = true;
-        goals[goalIndex].completedAt = new Date().toISOString();
-        await updateGoals(goals);
-      }
-    } catch (err) {
-      console.error('Complete goal error:', err);
-    }
-  };
-
-  // Update recommendations
-  const updateRecommendations = async (recommendations) => {
-    try {
-      await updateStats({ recommendations });
-    } catch (err) {
-      console.error('Update recommendations error:', err);
-    }
-  };
+  }, [userId]);
 
   // Refresh all data
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       setLoading(true);
 
       const [guide, obs, mats, imps, anns] = await Promise.all([
-        getStudyGuide(userId),
-        getObservationsByStudent(userId),
-        teacherId ? getMaterialsForStudent(userId, teacherId) : [],
-        getImprovementsByStudent(userId),
-        teacherId ? getAnnouncementsForStudent(teacherId) : []
+        fetchStudyGuide(userId),
+        getObservationsByStudent(userId).catch(() => []),
+        teacherId ? getMaterialsForStudent(userId, teacherId).catch(() => []) : [],
+        getImprovementsByStudent(userId).catch(() => []),
+        teacherId ? getAnnouncementsForStudent(teacherId).catch(() => []) : []
       ]);
 
       setStudyGuide(guide);
-      setObservations(obs);
-      setMaterials(mats);
-      setImprovements(imps);
-      setAnnouncements(anns);
+      setObservations(obs || []);
+      setMaterials(mats || []);
+      setImprovements(imps || []);
+      setAnnouncements(anns || []);
     } catch (err) {
       console.error('Refresh error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, teacherId]);
 
-  // Get summary stats
-  const getSummary = () => {
-    if (!studyGuide) return null;
-
-    return {
-      conversations: studyGuide.conversation_count || 0,
-      vocabulary: studyGuide.vocabulary_mastered || 0,
-      fluency: studyGuide.fluency_score || 0,
-      strengths: studyGuide.strengths?.length || 0,
-      weaknesses: studyGuide.weaknesses?.length || 0,
-      goals: studyGuide.goals?.length || 0,
-      goalsCompleted: studyGuide.goals?.filter(g => g.completed)?.length || 0,
-      recommendations: studyGuide.recommendations?.length || 0,
-      observations: observations.length,
-      materials: materials.length,
-      improvements: improvements.length,
-      announcements: announcements.length
-    };
-  };
+  // Format guide for display (compatibility with old format)
+  const formattedGuide = studyGuide ? {
+    ...studyGuide,
+    conversationCount: studyGuide.conversation_count || 0,
+    progress: {
+      vocabularyMastered: studyGuide.vocabulary_mastered || 0,
+      grammarPointsCovered: Math.floor((studyGuide.conversation_count || 0) / 2),
+      fluencyScore: studyGuide.fluency_score || 0
+    },
+    analysis: {
+      strengths: studyGuide.strengths || [],
+      commonMistakes: []
+    },
+    weeklyGoals: studyGuide.goals || [],
+    recommendations: studyGuide.recommendations || [],
+    observations: observations,
+    lastUpdated: studyGuide.updated_at || new Date().toISOString()
+  } : null;
 
   const value = {
     // State
-    studyGuide,
+    studyGuide: formattedGuide,
     observations,
     materials,
     improvements,
@@ -258,20 +260,14 @@ export const StudyGuideProvider = ({ children }) => {
     loading,
     error,
 
-    // Update functions
-    updateStats,
-    incrementConversationCount,
-    updateVocabulary,
-    updateFluency,
-    addStrength,
-    addWeakness,
-    updateGoals,
+    // Functions
+    getStudyGuide,
+    getAllStudyGuides,
+    generateStudyGuide,
+    addObservation,
     completeGoal,
-    updateRecommendations,
-
-    // Utility functions
+    updateStats,
     refresh,
-    getSummary,
 
     // Computed values
     hasTeacher: !!teacherId,

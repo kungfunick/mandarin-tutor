@@ -1,6 +1,6 @@
 /**
  * Supabase Client Configuration
- * Handles database connection and authentication
+ * Handles database connection and authentication with session validation
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -15,7 +15,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
 }
 
-// Create Supabase client
+// Create Supabase client with proper session handling
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -23,10 +23,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storage: window.localStorage,
     storageKey: 'mandarin-tutor-auth',
+    flowType: 'pkce'
   },
   realtime: {
     params: {
       eventsPerSecond: 10
+    }
+  },
+  global: {
+    headers: {
+      'x-client-info': 'mandarin-tutor'
     }
   }
 });
@@ -52,22 +58,30 @@ export const signUp = async (email, password, displayName, role = 'student') => 
 
     if (authError) throw authError;
 
-    // Create profile
+    // Profile will be created by database trigger
+    // Wait a moment for the trigger to execute
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Get the created profile
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .insert([{
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError) {
+      console.warn('Profile not yet created, using auth data');
+    }
+
+    return { 
+      user: authData.user, 
+      profile: profileData || {
         id: authData.user.id,
         email: email,
         display_name: displayName,
-        role: role,
-        is_active: true
-      }])
-      .select()
-      .single();
-
-    if (profileError) throw profileError;
-
-    return { user: authData.user, profile: profileData };
+        role: role
+      }
+    };
   } catch (error) {
     console.error('Sign up error:', error);
     throw error;
@@ -106,22 +120,39 @@ export const signIn = async (email, password) => {
   }
 };
 
-// Sign out
+// Sign out with cleanup
 export const signOut = async () => {
   try {
-    const { error } = await supabase.auth.signOut();
+    // Clear local storage first
+    localStorage.removeItem('mandarin-tutor-auth');
+    
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
   } catch (error) {
     console.error('Sign out error:', error);
+    // Even if there's an error, clear local state
+    localStorage.removeItem('mandarin-tutor-auth');
     throw error;
   }
 };
 
-// Get current session
+// Get current session with validation
 export const getSession = async () => {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
+    
+    // Validate session is not expired
+    if (session?.expires_at) {
+      const expiresAt = new Date(session.expires_at * 1000);
+      if (expiresAt < new Date()) {
+        console.log('Session expired, clearing...');
+        await signOut();
+        return null;
+      }
+    }
+    
     return session;
   } catch (error) {
     console.error('Get session error:', error);
@@ -129,7 +160,7 @@ export const getSession = async () => {
   }
 };
 
-// Get current user
+// Get current user with profile
 export const getCurrentUser = async () => {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
@@ -229,15 +260,29 @@ export const resetPasswordRequest = async (email) => {
 // Subscribe to auth changes
 export const onAuthStateChange = (callback) => {
   return supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth state changed:', event);
+    
+    if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+      // Ensure local storage is cleared
+      localStorage.removeItem('mandarin-tutor-auth');
+      callback(event, null, null);
+      return;
+    }
+    
     if (session?.user) {
-      // Get full profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      try {
+        // Get full profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-      callback(event, session, profile);
+        callback(event, session, profile);
+      } catch (err) {
+        console.error('Error fetching profile on auth change:', err);
+        callback(event, session, null);
+      }
     } else {
       callback(event, session, null);
     }
@@ -250,8 +295,10 @@ export const onAuthStateChange = (callback) => {
 
 // Subscribe to table changes
 export const subscribeToTable = (table, filter, callback) => {
+  const channelName = filter ? `${table}-${filter}` : `${table}-changes`;
+  
   const channel = supabase
-    .channel(`${table}-changes`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -275,7 +322,7 @@ export const unsubscribe = (channel) => {
 };
 
 /**
- * Storage Helper Functions (for future file uploads)
+ * Storage Helper Functions
  */
 
 // Upload file

@@ -52,11 +52,8 @@ const MandarinTutor = () => {
   const [showTeacherDashboard, setShowTeacherDashboard] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
-  // Persistent settings using custom hook
+  // User preferences (these can stay in localStorage as they're non-sensitive)
   const [aiProvider, setAiProvider] = useLocalStorage('aiProvider', 'claude');
-  const [claudeApiKey, setClaudeApiKey] = useLocalStorage('claudeApiKey', '');
-  const [openaiApiKey, setOpenaiApiKey] = useLocalStorage('openaiApiKey', '');
-  const [geminiApiKey, setGeminiApiKey] = useLocalStorage('geminiApiKey', '');
   const [customProviders, setCustomProviders] = useLocalStorage('customProviders', []);
   const [difficulty, setDifficulty] = useLocalStorage('difficulty', 'beginner');
   const [showTranslations, setShowTranslations] = useLocalStorage('showTranslations', true);
@@ -102,8 +99,6 @@ const MandarinTutor = () => {
       console.log('📝 Setting transcript to input:', transcript);
       logger.info(`Transcript received: "${transcript}"`);
       setInputText(transcript);
-      // Don't reset here - let it accumulate during the session
-      // Only reset when user manually stops or sends the message
     }
   }, [transcript]);
 
@@ -113,26 +108,10 @@ const MandarinTutor = () => {
       console.log('🛑 User clicked to stop listening');
       logger.info('User stopped listening manually');
       stopListening();
-      // Don't reset transcript here - let the user see what was captured
-      // They can manually clear it or send it
     } else {
       console.log('🎤 User clicked to start listening');
       logger.info('User started listening');
       startListening();
-    }
-  };
-
-  // Get current API key based on provider
-  const getCurrentApiKey = () => {
-    switch (aiProvider) {
-      case 'claude': return claudeApiKey;
-      case 'openai': return openaiApiKey;
-      case 'gemini': return geminiApiKey;
-      default: {
-        // Check if it's a custom provider
-        const customProvider = customProviders.find(p => p.id === aiProvider);
-        return customProvider?.apiKey || '';
-      }
     }
   };
 
@@ -146,13 +125,11 @@ const MandarinTutor = () => {
     const existingIndex = customProviders.findIndex(p => p.id === provider.id);
 
     if (existingIndex >= 0) {
-      // Update existing
       const updated = [...customProviders];
       updated[existingIndex] = provider;
       setCustomProviders(updated);
       logger.info(`Updated custom provider: ${provider.label}`);
     } else {
-      // Add new
       setCustomProviders([...customProviders, provider]);
       logger.info(`Added new custom provider: ${provider.label}`);
     }
@@ -167,7 +144,6 @@ const MandarinTutor = () => {
       setCustomProviders(customProviders.filter(p => p.id !== id));
       logger.info(`Deleted custom provider: ${provider?.label || id}`);
 
-      // If currently selected provider is deleted, switch to Claude
       if (aiProvider === id) {
         setAiProvider('claude');
       }
@@ -181,14 +157,13 @@ const MandarinTutor = () => {
       return;
     }
 
-    const currentApiKey = getCurrentApiKey();
     const customProvider = getCustomProvider();
 
-    // Check if we need an API key (custom providers might not need one)
-    if (!currentApiKey && !customProvider) {
-      logger.error(`No API key set for provider: ${aiProvider}`);
-      alert(`Please set your ${aiProvider.toUpperCase()} API key in the settings (gear icon).`);
-      setShowSettings(true);
+    // Custom providers might need their own API key
+    if (customProvider && !customProvider.apiKey) {
+      logger.error(`No API key set for custom provider: ${customProvider.label}`);
+      alert(`Please set the API key for ${customProvider.label} in custom providers settings.`);
+      setShowCustomProviders(true);
       return;
     }
 
@@ -201,11 +176,11 @@ const MandarinTutor = () => {
     logger.info(`User message: "${inputText}"`);
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
-    resetTranscript(); // Reset the speech recognition transcript
+    resetTranscript();
     setIsLoading(true);
 
     try {
-      const conversationHistory = messages.map(msg => ({
+      const msgHistory = messages.map(msg => ({
         role: msg.role,
         content: msg.mandarin
       }));
@@ -214,23 +189,23 @@ const MandarinTutor = () => {
       let responseText;
 
       if (customProvider) {
-        // Use custom provider
+        // Use custom provider with its own API key
         logger.debug(`Using custom provider: ${customProvider.label}`);
-        responseText = await callCustomAPI(customProvider, conversationHistory, inputText, difficulty, correctionMode);
+        responseText = await callCustomAPI(customProvider, msgHistory, inputText, difficulty, correctionMode);
       } else {
-        // Use built-in provider
+        // Use built-in provider - server handles the API key
         switch (aiProvider) {
           case 'claude':
-            logger.debug('Calling Claude API');
-            responseText = await callClaudeAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
+            logger.debug('Calling Claude API (server-side key)');
+            responseText = await callClaudeAPI(null, msgHistory, inputText, difficulty, correctionMode);
             break;
           case 'openai':
-            logger.debug('Calling OpenAI API');
-            responseText = await callOpenAIAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
+            logger.debug('Calling OpenAI API (server-side key)');
+            responseText = await callOpenAIAPI(null, msgHistory, inputText, difficulty, correctionMode);
             break;
           case 'gemini':
-            logger.debug('Calling Gemini API');
-            responseText = await callGeminiAPI(currentApiKey, conversationHistory, inputText, difficulty, correctionMode);
+            logger.debug('Calling Gemini API (server-side key)');
+            responseText = await callGeminiAPI(null, msgHistory, inputText, difficulty, correctionMode);
             break;
           default:
             throw new Error('Invalid AI provider');
@@ -260,7 +235,20 @@ const MandarinTutor = () => {
     } catch (error) {
       logger.error('AI API Error:', error.message, error.stack);
       console.error('Error:', error);
-      alert(`Error: ${error.message}\n\nCheck your API key and configuration, then try again.`);
+      
+      // Provide more helpful error messages
+      let errorMessage = error.message;
+      if (error.message.includes('API key not configured')) {
+        errorMessage = 'The AI service is not configured on the server. Please contact the administrator.';
+      } else if (error.message.includes('401') || error.message.includes('403')) {
+        errorMessage = 'Authentication failed. The server API key may be invalid.';
+      } else if (error.message.includes('429')) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (error.message.includes('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
+      alert(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -351,10 +339,10 @@ const MandarinTutor = () => {
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
         onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
-        onToggleStudyGuide={role === 'student' ? () => setShowStudyGuide(!showStudyGuide) : undefined}
-        onToggleTeacherDashboard={role === 'teacher' ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
-        onToggleAdminPanel={role === 'admin' ? () => setShowAdminPanel(!showAdminPanel) : undefined}
-        showDebugButton={role === 'admin'}
+        onToggleStudyGuide={isStudent() ? () => setShowStudyGuide(!showStudyGuide) : undefined}
+        onToggleTeacherDashboard={isTeacher() ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
+        onToggleAdminPanel={isAdmin() ? () => setShowAdminPanel(!showAdminPanel) : undefined}
+        showDebugButton={isAdmin()}
         theme={theme}
       />
 
@@ -369,20 +357,6 @@ const MandarinTutor = () => {
         onLoadConversation={loadConversation}
         onDeleteConversation={deleteConversation}
       />
-
-      {/* Admin button (admins only) */}
-      {isAdmin() && (
-        <button
-          onClick={() => setShowAdminPanel(!showAdminPanel)}
-          className="p-2 hover:bg-red-100 rounded-lg transition-colors"
-          title="Admin Panel"
-        >
-          <Shield
-            size={20}
-            className={showAdminPanel ? 'text-red-600' : 'text-gray-600'}
-          />
-        </button>
-      )}
 
       {/* Study Guide Panel */}
       {showStudyGuide && (
@@ -408,14 +382,14 @@ const MandarinTutor = () => {
       )}
 
       {/* Teacher Dashboard */}
-      {showTeacherDashboard && user?.role === 'teacher' && (
+      {showTeacherDashboard && isTeacher() && (
         <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
           <TeacherDashboard onClose={() => setShowTeacherDashboard(false)} />
         </div>
       )}
 
       {/* Admin Panel */}
-      {showAdminPanel && user?.role === 'admin' && (
+      {showAdminPanel && isAdmin() && (
         <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
           <AdminPanel onClose={() => setShowAdminPanel(false)} />
         </div>
@@ -425,12 +399,6 @@ const MandarinTutor = () => {
         show={showSettings}
         aiProvider={aiProvider}
         setAiProvider={setAiProvider}
-        claudeApiKey={claudeApiKey}
-        setClaudeApiKey={setClaudeApiKey}
-        openaiApiKey={openaiApiKey}
-        setOpenaiApiKey={setOpenaiApiKey}
-        geminiApiKey={geminiApiKey}
-        setGeminiApiKey={setGeminiApiKey}
         difficulty={difficulty}
         setDifficulty={setDifficulty}
         showTranslations={showTranslations}
