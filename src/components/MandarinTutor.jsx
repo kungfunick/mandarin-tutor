@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { StudyGuidePanel } from './StudyGuidePanel';
 import { TeacherDashboard } from './TeacherDashboard';
@@ -45,7 +45,7 @@ const MandarinTutor = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Add auth
-  const { user, role } = useAuth();
+  const { user, profile, role, isAdmin, isTeacher, isStudent } = useAuth();
 
   // Add study guide state
   const [showStudyGuide, setShowStudyGuide] = useState(false);
@@ -351,9 +351,9 @@ const MandarinTutor = () => {
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
         onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
-        onToggleStudyGuide={user?.role === 'student' ? () => setShowStudyGuide(!showStudyGuide) : undefined}
-        onToggleTeacherDashboard={user?.role === 'teacher' ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
-        onToggleAdminPanel={user?.role === 'admin' ? () => setShowAdminPanel(!showAdminPanel) : undefined}
+        onToggleStudyGuide={role === 'student' ? () => setShowStudyGuide(!showStudyGuide) : undefined}
+        onToggleTeacherDashboard={role === 'teacher' ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
+        onToggleAdminPanel={role === 'admin' ? () => setShowAdminPanel(!showAdminPanel) : undefined}
         showDebugButton={role === 'admin'}
         theme={theme}
       />
@@ -369,6 +369,20 @@ const MandarinTutor = () => {
         onLoadConversation={loadConversation}
         onDeleteConversation={deleteConversation}
       />
+
+      {/* Admin button (admins only) */}
+      {isAdmin() && (
+        <button
+          onClick={() => setShowAdminPanel(!showAdminPanel)}
+          className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+          title="Admin Panel"
+        >
+          <Shield
+            size={20}
+            className={showAdminPanel ? 'text-red-600' : 'text-gray-600'}
+          />
+        </button>
+      )}
 
       {/* Study Guide Panel */}
       {showStudyGuide && (
