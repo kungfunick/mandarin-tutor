@@ -83,19 +83,16 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
     const data = await response.json();
     return data.content[0].text;
   } else {
-    // Production mode: direct API call (requires backend proxy)
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // Production mode: use Vercel serverless function
+    const response = await fetch('/api/claude', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages
+        apiKey,
+        messages,
+        systemPrompt
       })
     });
 
