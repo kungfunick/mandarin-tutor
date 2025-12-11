@@ -76,13 +76,27 @@ export const AuthProvider = ({ children }) => {
       setStudents([]);
       setTeachers([]);
       
-      // Clear localStorage
-      localStorage.removeItem('mandarin-tutor-auth');
+      // Clear ALL localStorage items (complete cleanup)
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        keysToRemove.push(localStorage.key(i));
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       
-      // Sign out from Supabase
-      await supabase.auth.signOut();
+      // Clear sessionStorage too
+      sessionStorage.clear();
+      
+      // Sign out from Supabase (this clears Supabase's internal storage)
+      await supabase.auth.signOut({ scope: 'global' });
+      
+      // Force reload to ensure clean state
+      window.location.href = '/';
     } catch (err) {
       console.error('Logout cleanup error:', err);
+      // Even on error, try to force a clean state
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/';
     }
   };
 
