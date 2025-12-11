@@ -116,39 +116,11 @@ export const LoginPage = () => {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          {/* Demo Accounts */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-3 font-medium">
-              Demo Accounts (for testing):
-            </p>
-            <div className="space-y-2">
-              {demoAccounts.map((account) => (
-                <button
-                  key={account.username}
-                  onClick={() => fillDemo(account.username, account.password)}
-                  className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm transition-colors"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-900">
-                      {account.role}
-                    </span>
-                    <span className="text-gray-500">
-                      {account.username}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-3 text-center">
-              Click to auto-fill credentials
-            </p>
-          </div>
         </div>
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-600 mt-6">
-          For production, this would connect to a secure backend
+          A Midnight Conspiracy
         </p>
       </div>
     </div>

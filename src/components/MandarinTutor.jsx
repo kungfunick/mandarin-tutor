@@ -45,7 +45,7 @@ const MandarinTutor = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Add auth
-  const { user, hasPermission } = useAuth();
+  const { user, role } = useAuth();
 
   // Add study guide state
   const [showStudyGuide, setShowStudyGuide] = useState(false);
@@ -354,7 +354,7 @@ const MandarinTutor = () => {
         onToggleStudyGuide={user?.role === 'student' ? () => setShowStudyGuide(!showStudyGuide) : undefined}
         onToggleTeacherDashboard={user?.role === 'teacher' ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
         onToggleAdminPanel={user?.role === 'admin' ? () => setShowAdminPanel(!showAdminPanel) : undefined}
-        showDebugButton={hasPermission('canAccessDebug')}
+        showDebugButton={role === 'admin'}
         theme={theme}
       />
 

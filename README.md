@@ -1,4 +1,4 @@
-# Mandarin Tutor - AI-Powered Chinese Learning Platform
+# 🇨🇳 Mandarin Tutor - AI-Powered Chinese Learning Platform
 
 A comprehensive, mobile-first web application for learning Mandarin Chinese with AI-powered conversations, role-based classroom management, and personalized study guidance.
 

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export const StudyGuidePanel = ({ conversationHistory, onClose }) => {
-  const { user, hasPermission, getTeacher } = useAuth();
+  const { user, role, isStudent, getTeacher } = useAuth();
   const { getStudyGuide, generateStudyGuide, completeGoal, addObservation, loading } = useStudyGuide();
   const [guide, setGuide] = useState(null);
   const [showAddObservation, setShowAddObservation] = useState(false);
@@ -319,7 +319,7 @@ export const StudyGuidePanel = ({ conversationHistory, onClose }) => {
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">Teacher Observations</h3>
-              {hasPermission('canManageStudyGuides') && !showAddObservation && (
+              {isStudent() && !showAddObservation && (
                 <button
                   onClick={() => setShowAddObservation(true)}
                   className="flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"

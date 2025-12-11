@@ -4,10 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import logger from '../utils/logger';
 
 export const AdvancedSettings = ({ show, onClose }) => {
-  const { hasPermission } = useAuth();
+  const { user, role, can } = useAuth();
 
   // Only render if user has permission
-  if (!hasPermission('canAccessDebug')) {
+  if (!role === 'admin') {
     return null;
   }
 
