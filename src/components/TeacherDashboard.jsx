@@ -1,6 +1,7 @@
 /**
  * Teacher Dashboard Component - Mobile-First Design
  * With student assignment and group management
+ * Fixed: Single assign button, proper refresh, groups show students with same modal
  */
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import {
   Users, User, BookOpen, Bell, FileText,
   ChevronRight, Plus, Trash2, Send, X, Link as LinkIcon,
   AlertTriangle, Globe, ChevronLeft, UserPlus, UserMinus,
-  FolderPlus, Edit2, Check, Users2, ChevronDown, ChevronUp
+  FolderPlus, Edit2, Check, Users2, ChevronDown, ChevronUp, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
@@ -97,8 +98,10 @@ export const TeacherDashboard = ({ onClose }) => {
 
       if (error) throw error;
       setStudents(data || []);
+      return data || [];
     } catch (err) {
       console.error('Error loading students:', err);
+      return [];
     }
   };
 
@@ -113,14 +116,15 @@ export const TeacherDashboard = ({ onClose }) => {
 
       if (error) throw error;
       setUnassignedStudents(data || []);
+      return data || [];
     } catch (err) {
       console.error('Error loading unassigned students:', err);
+      return [];
     }
   };
 
   const loadGroups = async () => {
     try {
-      // Load groups from localStorage for now (can be moved to Supabase later)
       const savedGroups = localStorage.getItem(`teacher_groups_${user.id}`);
       if (savedGroups) {
         setGroups(JSON.parse(savedGroups));
@@ -146,11 +150,19 @@ export const TeacherDashboard = ({ onClose }) => {
 
       if (error) throw error;
 
+      // Immediately update local state for responsive UI
+      const assignedStudent = unassignedStudents.find(s => s.id === studentId);
+      if (assignedStudent) {
+        setStudents(prev => [...prev, { ...assignedStudent, teacher_id: user.id }]);
+        setUnassignedStudents(prev => prev.filter(s => s.id !== studentId));
+      }
+
       setMessage({ type: 'success', text: 'Student assigned successfully' });
-      await loadData();
     } catch (err) {
       console.error('Error assigning student:', err);
       setMessage({ type: 'error', text: 'Failed to assign student' });
+      // Reload data on error to ensure consistency
+      await loadData();
     } finally {
       setLoading(false);
     }
@@ -171,6 +183,13 @@ export const TeacherDashboard = ({ onClose }) => {
 
       if (error) throw error;
 
+      // Update local state immediately
+      const unassignedStudent = students.find(s => s.id === studentId);
+      if (unassignedStudent) {
+        setUnassignedStudents(prev => [...prev, { ...unassignedStudent, teacher_id: null }]);
+        setStudents(prev => prev.filter(s => s.id !== studentId));
+      }
+
       // Also remove from any groups
       const updatedGroups = groups.map(group => ({
         ...group,
@@ -180,10 +199,10 @@ export const TeacherDashboard = ({ onClose }) => {
 
       setMessage({ type: 'success', text: 'Student unassigned' });
       setSelectedStudent(null);
-      await loadData();
     } catch (err) {
       console.error('Error unassigning student:', err);
       setMessage({ type: 'error', text: 'Failed to unassign student' });
+      await loadData();
     } finally {
       setLoading(false);
     }
@@ -243,7 +262,8 @@ export const TeacherDashboard = ({ onClose }) => {
   };
 
   // Open edit group modal
-  const handleEditGroup = (group) => {
+  const handleEditGroup = (group, e) => {
+    e.stopPropagation();
     setEditingGroup(group);
     setNewGroupName(group.name);
     setSelectedStudentsForGroup(group.studentIds);
@@ -292,6 +312,11 @@ export const TeacherDashboard = ({ onClose }) => {
   // Get student's groups
   const getStudentGroups = (studentId) => {
     return groups.filter(group => group.studentIds.includes(studentId));
+  };
+
+  // Get student by ID
+  const getStudentById = (studentId) => {
+    return students.find(s => s.id === studentId);
   };
 
   const handleAddObservation = () => {
@@ -415,6 +440,173 @@ export const TeacherDashboard = ({ onClose }) => {
     { id: 'announcements', icon: Bell, label: 'Announce', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-600' }
   ];
 
+  // Student Detail Modal Component (reused for both Students and Groups tabs)
+  const StudentDetailModal = ({ student, onClose }) => {
+    if (!student) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="flex-shrink-0 bg-white p-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center min-w-0 flex-1">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User size={24} className="text-blue-600" />
+                </div>
+                <div className="ml-3 min-w-0 flex-1">
+                  <h2 className="text-lg font-bold text-gray-900 truncate">
+                    {student.display_name || student.email?.split('@')[0]}
+                  </h2>
+                  <p className="text-sm text-gray-600 truncate">{student.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full ml-2"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Progress */}
+            {getStudentProgress(student.id) && (
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="bg-blue-50 p-4 rounded-xl text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {getStudentProgress(student.id).vocabulary}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Words</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-xl text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {getStudentProgress(student.id).conversations}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Chats</div>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-xl text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {getStudentProgress(student.id).fluencyScore}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Score</div>
+                </div>
+              </div>
+            )}
+
+            {/* Groups */}
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Groups</h4>
+              <div className="flex flex-wrap gap-2">
+                {getStudentGroups(student.id).map(group => (
+                  <span 
+                    key={group.id}
+                    className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-sm flex items-center"
+                  >
+                    {group.name}
+                    <button
+                      onClick={() => handleRemoveFromGroup(student.id, group.id)}
+                      className="ml-2 hover:text-cyan-900"
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+                {getStudentGroups(student.id).length === 0 && (
+                  <span className="text-sm text-gray-400">No groups</span>
+                )}
+                {groups.filter(g => !g.studentIds.includes(student.id)).length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddToGroup(student.id, e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    className="px-3 py-1 border border-dashed border-gray-300 rounded-full text-sm text-gray-500"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>+ Add to group</option>
+                    {groups.filter(g => !g.studentIds.includes(student.id)).map(group => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                onClick={() => setShowObservationForm(true)}
+                className="p-3 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-sm font-medium hover:bg-purple-100"
+              >
+                <FileText size={16} className="mr-2" />
+                Add Note
+              </button>
+              <button
+                onClick={() => handleUnassignStudent(student.id)}
+                className="p-3 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-sm font-medium hover:bg-red-100"
+              >
+                <UserMinus size={16} className="mr-2" />
+                Unassign
+              </button>
+            </div>
+
+            {/* Add Observation Form */}
+            {showObservationForm && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                <textarea
+                  value={newObservation}
+                  onChange={(e) => setNewObservation(e.target.value)}
+                  placeholder="Write your observation..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none text-sm"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex justify-end space-x-2 mt-2">
+                  <button
+                    onClick={() => {
+                      setShowObservationForm(false);
+                      setNewObservation('');
+                    }}
+                    className="px-3 py-1.5 text-sm text-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddObservation}
+                    className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Recent Observations */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Recent Notes</h4>
+              <div className="space-y-2">
+                {(studyGuides[student.id]?.observations || []).slice(-3).reverse().map((obs) => (
+                  <div key={obs.id} className="bg-white border rounded-lg p-3">
+                    <p className="text-sm text-gray-900">{obs.text}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {new Date(obs.timestamp || obs.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+                {!(studyGuides[student.id]?.observations?.length) && (
+                  <p className="text-sm text-gray-500 text-center py-4">No notes yet</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
@@ -425,13 +617,23 @@ export const TeacherDashboard = ({ onClose }) => {
             <span className="hidden sm:inline">Teacher Dashboard</span>
             <span className="sm:hidden">Dashboard</span>
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
-            title="Close"
-          >
-            <X size={20} className="text-gray-600" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw size={18} className={`text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
+              title="Close"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -483,28 +685,19 @@ export const TeacherDashboard = ({ onClose }) => {
         {/* Students Tab */}
         {activeTab === 'students' && (
           <div className="p-4">
-            {/* Action Buttons */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setShowAssignModal(true)}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center text-sm font-medium"
-              >
-                <UserPlus size={16} className="mr-2" />
-                Assign Students
-              </button>
-              <button
-                onClick={() => {
-                  setEditingGroup(null);
-                  setNewGroupName('');
-                  setSelectedStudentsForGroup([]);
-                  setShowGroupModal(true);
-                }}
-                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center justify-center text-sm font-medium"
-              >
-                <FolderPlus size={16} className="mr-2" />
-                <span className="hidden sm:inline">New Group</span>
-              </button>
-            </div>
+            {/* Single Action Button */}
+            <button
+              onClick={() => setShowAssignModal(true)}
+              className="w-full mb-4 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center justify-center font-medium"
+            >
+              <UserPlus size={18} className="mr-2" />
+              Assign Students
+              {unassignedStudents.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-blue-500 rounded-full text-xs">
+                  {unassignedStudents.length} available
+                </span>
+              )}
+            </button>
 
             {/* Student List */}
             <div className="space-y-3">
@@ -515,13 +708,11 @@ export const TeacherDashboard = ({ onClose }) => {
                 return (
                   <div
                     key={student.id}
-                    className="border rounded-xl p-4 hover:shadow-lg transition-all bg-white"
+                    onClick={() => setSelectedStudent(student)}
+                    className="border rounded-xl p-4 hover:shadow-lg transition-all bg-white cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <div 
-                        className="flex items-center min-w-0 flex-1 cursor-pointer"
-                        onClick={() => setSelectedStudent(student)}
-                      >
+                      <div className="flex items-center min-w-0 flex-1">
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                           <User size={20} className="text-blue-600" />
                         </div>
@@ -532,11 +723,7 @@ export const TeacherDashboard = ({ onClose }) => {
                           <p className="text-xs text-gray-500 truncate">{student.email}</p>
                         </div>
                       </div>
-                      <ChevronRight 
-                        size={20} 
-                        className="text-gray-400 flex-shrink-0 ml-2 cursor-pointer" 
-                        onClick={() => setSelectedStudent(student)}
-                      />
+                      <ChevronRight size={20} className="text-gray-400 flex-shrink-0 ml-2" />
                     </div>
 
                     {/* Groups */}
@@ -574,17 +761,11 @@ export const TeacherDashboard = ({ onClose }) => {
                 );
               })}
 
-              {students.length === 0 && (
+              {students.length === 0 && !loading && (
                 <div className="text-center py-16 text-gray-500">
                   <Users size={48} className="mx-auto mb-3 text-gray-300" />
-                  <p className="text-sm mb-4">No students assigned yet</p>
-                  <button
-                    onClick={() => setShowAssignModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    <UserPlus size={16} className="inline mr-2" />
-                    Assign Students
-                  </button>
+                  <p className="text-sm mb-2">No students assigned yet</p>
+                  <p className="text-xs text-gray-400">Click the button above to assign students</p>
                 </div>
               )}
             </div>
@@ -631,10 +812,7 @@ export const TeacherDashboard = ({ onClose }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditGroup(group);
-                          }}
+                          onClick={(e) => handleEditGroup(group, e)}
                           className="p-2 hover:bg-cyan-100 rounded-lg transition-colors"
                         >
                           <Edit2 size={16} className="text-cyan-600" />
@@ -663,7 +841,8 @@ export const TeacherDashboard = ({ onClose }) => {
                             {groupStudents.map(student => (
                               <div 
                                 key={student.id}
-                                className="flex items-center justify-between bg-white rounded-lg p-3"
+                                onClick={() => setSelectedStudent(student)}
+                                className="flex items-center justify-between bg-white rounded-lg p-3 cursor-pointer hover:shadow-md transition-all"
                               >
                                 <div className="flex items-center">
                                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -673,13 +852,7 @@ export const TeacherDashboard = ({ onClose }) => {
                                     {student.display_name || student.email?.split('@')[0]}
                                   </span>
                                 </div>
-                                <button
-                                  onClick={() => handleRemoveFromGroup(student.id, group.id)}
-                                  className="p-1 hover:bg-red-100 rounded transition-colors"
-                                  title="Remove from group"
-                                >
-                                  <UserMinus size={16} className="text-red-600" />
-                                </button>
+                                <ChevronRight size={16} className="text-gray-400" />
                               </div>
                             ))}
                           </div>
@@ -1050,163 +1223,12 @@ export const TeacherDashboard = ({ onClose }) => {
         )}
       </div>
 
-      {/* Student Detail Modal */}
+      {/* Student Detail Modal - Used by both Students tab and Groups tab */}
       {selectedStudent && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex-shrink-0 bg-white p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center min-w-0 flex-1">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User size={24} className="text-blue-600" />
-                  </div>
-                  <div className="ml-3 min-w-0 flex-1">
-                    <h2 className="text-lg font-bold text-gray-900 truncate">
-                      {selectedStudent.display_name || selectedStudent.email?.split('@')[0]}
-                    </h2>
-                    <p className="text-sm text-gray-600 truncate">{selectedStudent.email}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedStudent(null)}
-                  className="p-2 hover:bg-gray-100 rounded-full ml-2"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Progress */}
-              {getStudentProgress(selectedStudent.id) && (
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="bg-blue-50 p-4 rounded-xl text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {getStudentProgress(selectedStudent.id).vocabulary}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Words</div>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-xl text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {getStudentProgress(selectedStudent.id).conversations}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Chats</div>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-xl text-center">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {getStudentProgress(selectedStudent.id).fluencyScore}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Score</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Groups */}
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Groups</h4>
-                <div className="flex flex-wrap gap-2">
-                  {getStudentGroups(selectedStudent.id).map(group => (
-                    <span 
-                      key={group.id}
-                      className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-sm flex items-center"
-                    >
-                      {group.name}
-                      <button
-                        onClick={() => handleRemoveFromGroup(selectedStudent.id, group.id)}
-                        className="ml-2 hover:text-cyan-900"
-                      >
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-                  {groups.filter(g => !g.studentIds.includes(selectedStudent.id)).length > 0 && (
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleAddToGroup(selectedStudent.id, e.target.value);
-                          e.target.value = '';
-                        }
-                      }}
-                      className="px-3 py-1 border border-dashed border-gray-300 rounded-full text-sm text-gray-500"
-                      defaultValue=""
-                    >
-                      <option value="" disabled>+ Add to group</option>
-                      {groups.filter(g => !g.studentIds.includes(selectedStudent.id)).map(group => (
-                        <option key={group.id} value={group.id}>{group.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <button
-                  onClick={() => setShowObservationForm(true)}
-                  className="p-3 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-sm font-medium hover:bg-purple-100"
-                >
-                  <FileText size={16} className="mr-2" />
-                  Add Note
-                </button>
-                <button
-                  onClick={() => handleUnassignStudent(selectedStudent.id)}
-                  className="p-3 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-sm font-medium hover:bg-red-100"
-                >
-                  <UserMinus size={16} className="mr-2" />
-                  Unassign
-                </button>
-              </div>
-
-              {/* Add Observation Form */}
-              {showObservationForm && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-xl">
-                  <textarea
-                    value={newObservation}
-                    onChange={(e) => setNewObservation(e.target.value)}
-                    placeholder="Write your observation..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none text-sm"
-                    rows={3}
-                    autoFocus
-                  />
-                  <div className="flex justify-end space-x-2 mt-2">
-                    <button
-                      onClick={() => {
-                        setShowObservationForm(false);
-                        setNewObservation('');
-                      }}
-                      className="px-3 py-1.5 text-sm text-gray-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleAddObservation}
-                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Recent Observations */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Recent Notes</h4>
-                <div className="space-y-2">
-                  {(studyGuides[selectedStudent.id]?.observations || []).slice(-3).reverse().map((obs) => (
-                    <div key={obs.id} className="bg-white border rounded-lg p-3">
-                      <p className="text-sm text-gray-900">{obs.text}</p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        {new Date(obs.timestamp || obs.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )) || (
-                    <p className="text-sm text-gray-500 text-center py-4">No notes yet</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <StudentDetailModal 
+          student={selectedStudent} 
+          onClose={() => setSelectedStudent(null)} 
+        />
       )}
 
       {/* Assign Students Modal */}
