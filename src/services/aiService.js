@@ -58,9 +58,9 @@ export const callClaudeAPI = async (apiKey, conversationHistory, userInput, diff
   ];
 
   // Use proxy server in development to avoid CORS issues
-  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
-  
-  if (proxyUrl) {
+  const isDevelopment = import.meta.env.DEV;
+
+  if (isDevelopment) {
     // Development mode: use proxy server
     console.log('🔄 Using proxy server:', proxyUrl);
     const response = await fetch(`${proxyUrl}/api/claude`, {
@@ -125,10 +125,10 @@ export const callOpenAIAPI = async (apiKey, conversationHistory, userInput, diff
     { role: 'user', content: userInput }
   ];
 
-  // Use proxy server in development
-  const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
-  
-  if (proxyUrl) {
+  // Use proxy server in development to avoid CORS issues
+  const isDevelopment = import.meta.env.DEV;
+
+  if (isDevelopment) {
     console.log('🔄 Using proxy server for OpenAI');
     const response = await fetch(`${proxyUrl}/api/openai`, {
       method: 'POST',
@@ -189,7 +189,7 @@ export const callGeminiAPI = async (apiKey, conversationHistory, userInput, diff
 
   // Use proxy server in development
   const proxyUrl = import.meta.env.VITE_API_PROXY_URL;
-  
+
   if (proxyUrl) {
     console.log('🔄 Using proxy server for Gemini');
     const response = await fetch(`${proxyUrl}/api/gemini`, {
