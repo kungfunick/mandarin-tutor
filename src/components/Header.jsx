@@ -15,9 +15,12 @@ export const Header = ({
   showDebugButton,
   theme
 }) => {
-  const { user, logout, getTeacher } = useAuth();
+  const { user, profile, logout, getTeacher, isAdmin, isTeacher, isStudent } = useAuth();
   const isDark = theme === 'dark';
-  const teacher = user?.role === 'student' ? getTeacher(user.teacherId) : null;
+  const teacher = isStudent() ? getTeacher(profile?.teacher_id) : null;
+
+  // Get role from profile
+  const role = profile?.role;
 
   return (
     <div className={`shadow-sm border-b p-4 ${
@@ -39,7 +42,7 @@ export const Header = ({
               </p>
               {teacher && (
                 <p className="text-xs text-gray-500">
-                  • Teacher: <span className="font-medium">{teacher.name}</span>
+                  • Teacher: <span className="font-medium">{teacher.display_name || teacher.name}</span>
                 </p>
               )}
             </div>
@@ -50,13 +53,13 @@ export const Header = ({
           <div className="hidden sm:flex items-center px-3 py-1.5 bg-gray-100 rounded-lg mr-2">
             <User size={14} className="text-gray-600 mr-2" />
             <div className="text-xs">
-              <div className="font-medium text-gray-900">{user?.name}</div>
-              <div className="text-gray-500 capitalize">{user?.role}</div>
+              <div className="font-medium text-gray-900">{profile?.display_name || user?.email?.split('@')[0]}</div>
+              <div className="text-gray-500 capitalize">{role}</div>
             </div>
           </div>
 
-          {/* Role-specific button */}
-          {user?.role === 'student' && onToggleStudyGuide && (
+          {/* Study Guide - Students only */}
+          {role === 'student' && (
             <button
               onClick={onToggleStudyGuide}
               className={`p-2 rounded-lg transition-colors ${
@@ -68,7 +71,8 @@ export const Header = ({
             </button>
           )}
 
-          {user?.role === 'teacher' && onToggleTeacherDashboard && (
+          {/* Teacher Dashboard - Teachers only */}
+          {role === 'teacher' && (
             <button
               onClick={onToggleTeacherDashboard}
               className={`p-2 rounded-lg transition-colors ${
@@ -80,7 +84,8 @@ export const Header = ({
             </button>
           )}
 
-          {user?.role === 'admin' && onToggleAdminPanel && (
+          {/* Admin Panel - Admins only */}
+          {role === 'admin' && (
             <button
               onClick={onToggleAdminPanel}
               className={`p-2 rounded-lg transition-colors ${
@@ -93,7 +98,7 @@ export const Header = ({
           )}
 
           {/* Advanced Settings - Admin only */}
-          {showDebugButton && (
+          {role === 'admin' && showDebugButton && (
             <button
               onClick={onToggleAdvanced}
               className={`p-2 rounded-lg transition-colors ${
@@ -176,3 +181,5 @@ export const Header = ({
     </div>
   );
 };
+
+export default Header;

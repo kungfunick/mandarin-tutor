@@ -339,10 +339,10 @@ const MandarinTutor = () => {
         onReset={resetConversation}
         onToggleSettings={() => setShowSettings(!showSettings)}
         onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
-        onToggleStudyGuide={isStudent() ? () => setShowStudyGuide(!showStudyGuide) : undefined}
-        onToggleTeacherDashboard={isTeacher() ? () => setShowTeacherDashboard(!showTeacherDashboard) : undefined}
-        onToggleAdminPanel={isAdmin() ? () => setShowAdminPanel(!showAdminPanel) : undefined}
-        showDebugButton={isAdmin()}
+        onToggleStudyGuide={() => setShowStudyGuide(!showStudyGuide)}
+        onToggleTeacherDashboard={() => setShowTeacherDashboard(!showTeacherDashboard)}
+        onToggleAdminPanel={() => setShowAdminPanel(!showAdminPanel)}
+        showDebugButton={true}
         theme={theme}
       />
 
@@ -382,14 +382,14 @@ const MandarinTutor = () => {
       )}
 
       {/* Teacher Dashboard */}
-      {showTeacherDashboard && isTeacher() && (
+      {showTeacherDashboard && profile?.role === 'teacher' && (
         <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
           <TeacherDashboard onClose={() => setShowTeacherDashboard(false)} />
         </div>
       )}
 
       {/* Admin Panel */}
-      {showAdminPanel && isAdmin() && (
+      {showAdminPanel && profile?.role === 'admin' && (
         <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
           <AdminPanel onClose={() => setShowAdminPanel(false)} />
         </div>
