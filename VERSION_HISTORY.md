@@ -1,414 +1,394 @@
-# Mandarin Tutor - Version History
+# Version History
 
-## Quick Reference
-
-| Version | What Changed | Files Modified | Auth Changes? |
-|---------|--------------|----------------|---------------|
-| v1 | Base app | All | N/A |
-| v2 | Bug fixes, dark theme | 4 files | ❌ No |
-| v3 | CORS proxy | 2 files | ❌ No |
-| v4 | Auth system added | 8 files | ✅ Yes - Initial |
-| v5 | Punctuation | 2 files | ❌ No |
-| v6 | Fixed icons | 1 file | ❌ No |
-| v7 | Role-based views | 6 files | ✅ Yes - Extended |
-| v8 | Mobile-first UI | 2 files | ❌ No |
+Complete changelog for Mandarin Tutor. Each version includes what changed, files modified, and migration notes.
 
 ---
 
-## V8 - Mobile-First Redesign (Current)
-**Date:** December 2025
-**Focus:** UI/UX improvements
+## V12.0.0 - CSS Fix & Layout Fix (Current)
+**Date:** December 2025  
+**Focus:** Critical bug fixes
 
-### Changed Files:
+### Changed Files: 6
+1. `package.json` - Downgraded Tailwind to v3.4.17
+2. `vite.config.js` - Removed @tailwindcss/vite plugin
+3. `postcss.config.js` - Standard v3 PostCSS config
+4. `tailwind.config.js` - Required v3 config file
+5. `src/index.css` - Changed to @tailwind directives
+6. `src/components/TeacherDashboard.jsx` - Fixed panel layout
+
+### Issues Fixed:
+- ✅ Tailwind CSS classes not rendering (v4 → v3 downgrade)
+- ✅ Teacher Dashboard appearing as modal instead of side panel
+
+### Breaking Changes: None
+
+### Migration: Replace 6 files, clean install
+
+---
+
+## V11.0.0 - Teacher Groups & Charts
+**Date:** December 2025  
+**Focus:** Enhanced teacher functionality
+
+### Changed Files: 3
+1. `src/components/TeacherDashboard.jsx` - Added groups, charts
+2. `src/components/ProgressCharts.jsx` - New chart components
+3. `supabase/migrations/` - Added group tables
+
+### Features Added:
+- ✅ Student groups with database persistence
+- ✅ Teacher overview charts
+- ✅ Group-based content targeting
+- ✅ Batch operations for observations
+- ✅ Group statistics visualization
+
+### Database Changes:
+- Added `teacher_groups` table
+- Added `group_members` table
+
+### Breaking Changes: None (new tables only)
+
+---
+
+## V10.0.0 - Supabase Integration
+**Date:** December 2025  
+**Focus:** Production database
+
+### New Files: 7
+1. `src/services/supabase.js` - Supabase client + auth
+2. `src/services/database.js` - All CRUD operations
+3. `src/hooks/useRealtime.js` - Real-time subscriptions
+4. `supabase/migrations/20250101000000_initial_schema.sql` - Database schema
+5. `.env.example` - Environment template
+6. `V10_COMPLETE_GUIDE.md` - Setup guide
+7. Updated `package.json` - Added @supabase/supabase-js
+
+### Updated Files: 2
+8. `src/contexts/AuthContext.jsx` - Supabase authentication
+9. `src/contexts/StudyGuideContext.jsx` - Database-backed data
+
+### Features Added:
+- ✅ PostgreSQL database via Supabase
+- ✅ Production authentication (JWT)
+- ✅ Row Level Security (RLS)
+- ✅ Real-time data synchronization
+- ✅ Password reset via email
+- ✅ Free cloud deployment (Vercel + Supabase)
+
+### Database Schema (7 Tables):
+1. `profiles` - User accounts
+2. `study_guides` - Student progress
+3. `observations` - Teacher notes
+4. `learning_materials` - Shared resources
+5. `areas_to_improve` - Student feedback
+6. `announcements` - Teacher messages
+7. `conversations` - Chat history
+
+### Breaking Changes:
+- ⚠️ localStorage → PostgreSQL (data migration needed)
+- ⚠️ Users must re-register
+- ⚠️ Requires .env configuration
+
+---
+
+## V9.0.0 - Student Guide Redesign
+**Date:** December 2025  
+**Focus:** UI consistency
+
+### Changed Files: 2
+1. `src/components/StudyGuidePanel.jsx` - Icon navigation
+2. `src/contexts/AuthContext.jsx` - Teacher name update
+
+### Features Added:
+- ✅ Icon-based navigation for student guide (7 tabs)
+- ✅ Color-coded tabs matching teacher dashboard
+- ✅ Close button (X) on student guide
+- ✅ Mobile-first responsive header
+- ✅ Teacher renamed from "Zhang" to "Liwen"
+
+### Design:
+- Overview (Blue), Goals (Green), Recs (Yellow)
+- Materials (Purple), Improve (Orange), News (Red), Notes (Indigo)
+
+### Breaking Changes: None
+
+---
+
+## V8.0.0 - Teacher Dashboard Redesign
+**Date:** December 2025  
+**Focus:** Mobile-first teacher UI
+
+### Changed Files: 2
 1. `src/components/TeacherDashboard.jsx` - Complete redesign
-2. `src/components/StudyGuidePanel.jsx` - Tab navigation update
+2. `src/components/Header.jsx` - Icon updates
 
 ### Features Added:
-- Icon-based navigation (no scrollbar)
-- Mobile-first responsive design
-- Touch-friendly 60px+ tap targets
-- Color-coded sections
-- Bottom-sheet modals on mobile
-- Abbreviated labels on small screens
+- ✅ Icon-based navigation (6 tabs)
+- ✅ Color-coded sections
+- ✅ Close button (X)
+- ✅ Touch-friendly tap targets (60px+)
+- ✅ Bottom-sheet modals on mobile
+- ✅ Gradient header background
 
-### Auth Changes: ❌ None
+### Design:
+- Students (Blue), Notes (Purple), Improve (Orange)
+- Materials (Green), Announce (Red), Lessons (Indigo)
+
+### Breaking Changes: None
 
 ---
 
-## V7 - Complete Role-Based System
-**Date:** December 2025
-**Focus:** Teacher features (materials, improvements, announcements)
+## V7.0.0 - Teacher Content Features
+**Date:** December 2025  
+**Focus:** Teacher-student communication
 
-### Changed Files:
-1. `src/components/TeacherDashboard.jsx` - New features
+### Changed Files: 6
+1. `src/components/TeacherDashboard.jsx` - New tabs
 2. `src/components/StudyGuidePanel.jsx` - New tabs
-3. `src/components/AdminPanel.jsx` - Added close button
-4. `src/contexts/StudyGuideContext.jsx` - New functions
-5. `src/contexts/AuthContext.jsx` - Admin functions
-6. `src/components/Header.jsx` - Icon imports
+3. `src/contexts/StudyGuideContext.jsx` - New functions
+4. `src/components/Header.jsx` - Icon imports fix
+5. `src/components/AdminPanel.jsx` - Close button
+6. Various component updates
 
 ### Features Added:
-- Learning Materials (teacher uploads links)
-- Areas to Improve (teacher feedback)
-- Global Announcements (teacher posts)
-- Student sees all in Study Guide
-- Close buttons on panels
+- ✅ Learning Materials - Teachers share links
+- ✅ Areas to Improve - Targeted feedback
+- ✅ Global Announcements - Teacher messages
+- ✅ Student guide expanded to 7 tabs
+- ✅ Teacher dashboard expanded to 6 tabs
+- ✅ Close buttons on all panels
 
-### Auth Changes: ✅ Yes
-- Added admin functions (updateUser, deleteUser, resetPassword)
-- Added teacher functions (addLessonPlan, addAnnouncement, getLessonPlans, getAnnouncements)
+### Breaking Changes: None
 
 ---
 
-## V6 - Icon Fix
-**Date:** December 2025
+## V6.0.0 - Icon Fix
+**Date:** December 2025  
 **Focus:** Bug fix
 
-### Changed Files:
-1. `src/components/Header.jsx` - Added missing icons
+### Changed Files: 1
+1. `src/components/Header.jsx` - Added missing imports
 
-### Features Added:
-- Added `Users` and `Shield` icons to imports
+### Fixed:
+- ✅ Missing Lucide React icon imports (Users, Shield)
 
-### Auth Changes: ❌ None
-
----
-
-## V5 - Automatic Punctuation
-**Date:** December 2025
-**Focus:** Speech recognition enhancement
-
-### Changed Files:
-1. `src/utils/punctuation.js` - NEW FILE
-2. `src/hooks/useSpeechRecognition.js` - Updated
-
-### Features Added:
-- Automatic Chinese punctuation (。？！，)
-- Question detection (吗, 什么, etc.)
-- Exclamation detection (太, 真, etc.)
-- Comma insertion at pauses
-- Intelligent sentence detection
-
-### Auth Changes: ❌ None
+### Breaking Changes: None
 
 ---
 
-## V4 - Authentication System
-**Date:** December 2025
-**Focus:** User roles and permissions
+## V5.0.0 - Chinese Punctuation
+**Date:** December 2025  
+**Focus:** Speech enhancement
 
-### Changed Files:
-1. `src/contexts/AuthContext.jsx` - NEW FILE
-2. `src/contexts/StudyGuideContext.jsx` - NEW FILE
-3. `src/components/LoginPage.jsx` - NEW FILE
-4. `src/components/StudyGuidePanel.jsx` - NEW FILE
-5. `src/App.jsx` - Wrapped with providers
-6. `src/components/Header.jsx` - Updated with auth
-7. `src/components/MandarinTutor.jsx` - Added auth hooks
-8. `src/components/SettingsPanel.jsx` - Added permissions
+### New Files: 1
+1. `src/utils/punctuation.js` - Punctuation utility
+
+### Changed Files: 1
+2. `src/hooks/useSpeechRecognition.js` - Auto-punctuation
 
 ### Features Added:
-- Login system (3 roles: Admin, Teacher, Student)
-- Role-based permissions
-- Study guides with AI analysis
-- Progress tracking (vocabulary, fluency, conversations)
-- Weekly goals
-- Teacher observations
-- Personalized recommendations
-- Demo accounts
+- ✅ Automatic Chinese punctuation for speech-to-text
+- ✅ Question detection (吗, 什么, 谁, 怎么, etc.)
+- ✅ Exclamation detection (太, 真, 多, 好, 非常, etc.)
+- ✅ Comma insertion at natural pauses
+- ✅ Period at sentence ends
 
-### Auth Changes: ✅ Yes - Initial implementation
-- Added AuthContext with login/logout
-- Added permission system
-- Added role-based UI restrictions
-- Added teacher-student relationships
+### Breaking Changes: None
 
 ---
 
-## V3 - CORS Fix
-**Date:** December 2025
-**Focus:** Local development proxy
+## V4.0.0 - Authentication System
+**Date:** December 2025  
+**Focus:** User management
 
-### Changed Files:
-1. `proxy-server.js` - NEW FILE
+### New Files: 8
+1. `src/contexts/AuthContext.jsx` - User authentication
+2. `src/contexts/StudyGuideContext.jsx` - Learning data
+3. `src/components/LoginPage.jsx` - Login UI
+4. `src/components/AdminPanel.jsx` - Admin management
+5. `src/components/TeacherDashboard.jsx` - Teacher view
+6. `src/components/StudyGuidePanel.jsx` - Student view
+7. Plus component updates
+
+### Features Added:
+- ✅ Login system with 3 role types
+- ✅ Role-Based Access Control (Admin, Teacher, Student)
+- ✅ Study Guide System - AI-powered learning
+- ✅ Teacher Dashboard - Classroom management
+- ✅ Admin Panel - User management
+- ✅ Progress tracking (vocabulary, fluency, conversations)
+- ✅ Weekly goals with completion tracking
+- ✅ Teacher observations
+- ✅ AI-generated study recommendations
+- ✅ Demo accounts for testing
+
+### Security Note:
+⚠️ V4 used localStorage - development only, not production-ready
+
+### Breaking Changes:
+- ⚠️ Major - New authentication system
+- ⚠️ New contexts required
+
+---
+
+## V3.0.0 - CORS Proxy
+**Date:** December 2025  
+**Focus:** Development tooling
+
+### New Files: 1
+1. `proxy-server.js` - CORS proxy server
+
+### Changed Files: 1
 2. `package.json` - Added proxy script
 
 ### Features Added:
-- CORS proxy server for local development
-- Handles API requests without CORS issues
-- New npm script: `npm run dev:full`
+- ✅ CORS proxy server for local development
+- ✅ Handles API requests without CORS issues
+- ✅ New npm script: `npm run dev:full`
 
-### Auth Changes: ❌ None
+### Breaking Changes: None
 
 ---
 
-## V2 - Bug Fixes and Improvements
-**Date:** December 2025
-**Focus:** UX enhancements
+## V2.0.0 - Bug Fixes & Enhancements
+**Date:** December 2025  
+**Focus:** UX improvements
 
-### Changed Files:
+### Changed Files: 4
 1. `src/utils/logger.js` - Multiple log files
 2. `src/components/MandarinTutor.jsx` - Bug fixes
 3. `src/index.css` - Dark theme
 4. `src/components/SettingsPanel.jsx` - Voice gender
 
 ### Features Added:
-- Multiple log files (error, info, debug, ai)
-- Dark theme support
-- Voice gender selection (male/female)
-- Fixed speech recognition bug
-- Better error handling
+- ✅ Multiple log files (error, info, debug, ai)
+- ✅ Dark theme support
+- ✅ Voice gender selection (male/female)
 
-### Auth Changes: ❌ None
+### Fixed:
+- ✅ Speech recognition start/stop bug
+- ✅ Memory leaks in speech hooks
+- ✅ Better error handling
+
+### Breaking Changes: None
 
 ---
 
-## V1 - Initial Release
-**Date:** December 2025
+## V1.0.0 - Initial Release
+**Date:** December 2025  
 **Focus:** Core functionality
 
 ### Features:
-- Mandarin conversation practice
-- AI-powered responses (Claude, OpenAI, Gemini)
-- Speech recognition
-- Text-to-speech
-- Pinyin and English translations
-- Error correction mode
-- Conversation history
-- Custom API providers
-- Difficulty levels
-
-### Auth Changes: N/A - No auth system yet
-
----
-
-## Migration Guide Between Versions
-
-### From V7 to V8 (Current):
-**Files to update:** 2
-**See:** `V8_CHANGES_ONLY.md`
-**Auth impact:** None ✅
-
-### From V6 to V7:
-**Files to update:** 6
-**Auth impact:** Extended functions (but contexts stay compatible)
-**Action:** Add new functions to contexts, update components
-
-### From V5 to V6:
-**Files to update:** 1
-**Auth impact:** None ✅
-**Action:** Add icon imports to Header
-
-### From V4 to V5:
-**Files to update:** 2
-**Auth impact:** None ✅
-**Action:** Add punctuation utility and update hook
-
-### From V3 to V4:
-**Files to update:** 8
-**Auth impact:** Major - New system ⚠️
-**Action:** Follow full integration guide
-
-### From V2 to V3:
-**Files to update:** 2
-**Auth impact:** None ✅
-**Action:** Add proxy server, update package.json
-
-### From V1 to V2:
-**Files to update:** 4
-**Auth impact:** None ✅
-**Action:** Update logger, add theme, voice selection
+- ✅ AI-powered Mandarin conversation practice
+- ✅ Support for Claude, GPT-4, and Gemini
+- ✅ Speech recognition (Web Speech API)
+- ✅ Text-to-speech with Chinese voices
+- ✅ Pinyin display toggle
+- ✅ English translation toggle
+- ✅ Error correction mode
+- ✅ Difficulty level selection (Beginner to Native)
+- ✅ Conversation history
+- ✅ Custom API provider support
+- ✅ Settings panel
+- ✅ Advanced settings (temperature, max tokens)
 
 ---
 
-## Backward Compatibility
+## Quick Reference
 
-### V8 → V7: ✅ Fully compatible
-- UI changes only
-- All V7 features work in V8
-- Can downgrade by restoring 2 files
-
-### V7 → V6: ⚠️ Partial
-- V7 adds new functions to contexts
-- Downgrading loses new features
-- Auth system unchanged
-
-### V6 → V5: ✅ Fully compatible
-- Icon import only
-- Can freely switch
-
-### V5 → V4: ✅ Compatible
-- Punctuation is addon
-- Doesn't affect auth
-
-### V4 → V3: ⚠️ Major change
-- V4 added entire auth system
-- Can't easily downgrade
-- Would lose all user features
+| Version | Focus | Files Changed | Breaking? |
+|---------|-------|---------------|-----------|
+| V12 | CSS Fix, Layout Fix | 6 | No |
+| V11 | Teacher Groups | 3 | No |
+| V10 | Supabase Database | 9 | Yes |
+| V9 | Student Guide UI | 2 | No |
+| V8 | Teacher Dashboard UI | 2 | No |
+| V7 | Teacher Content | 6 | No |
+| V6 | Icon Fix | 1 | No |
+| V5 | Punctuation | 2 | No |
+| V4 | Auth System | 8+ | Yes |
+| V3 | CORS Proxy | 2 | No |
+| V2 | Bug Fixes | 4 | No |
+| V1 | Initial | - | - |
 
 ---
 
 ## Feature Matrix
 
-| Feature | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 |
-|---------|----|----|----|----|----|----|----|----|
-| Basic Chat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Dark Theme | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CORS Proxy | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Login System | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Study Guides | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Punctuation | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Materials | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Improvements | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Announcements | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Mobile-First | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Feature | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 |
+|---------|----|----|----|----|----|----|----|----|----|----|-----|-----|
+| AI Chat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Speech Recognition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Text-to-Speech | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Dark Theme | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| CORS Proxy | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Login System | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Role-Based Access | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Study Guide | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Auto Punctuation | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Materials | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Announcements | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Mobile-First UI | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PostgreSQL DB | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Real-time Updates | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Student Groups | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Progress Charts | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
 ---
 
-## Update Recommendation
+## Migration Guides
 
-**If you're on V7:** Update to V8 ✅
-- Only 2 files change
-- UI improvements worth it
-- 5 minute update
-- Low risk
+### V11 → V12
+1. Replace 6 config/component files
+2. `rm -rf node_modules && npm install`
+3. Test and deploy
 
-**If you're on V6 or earlier:** 
-1. Update to V7 first
-2. Then update to V8
-3. Or skip to V8 (follow V7 guide + V8 guide)
+### V10 → V11
+1. Add new group tables to Supabase
+2. Update TeacherDashboard.jsx
+3. Add ProgressCharts.jsx
 
-**If you're on V4-V5:**
-1. Follow V7 integration guide
-2. Then apply V8 changes
+### V9 → V10
+1. Create Supabase project
+2. Run migration SQL
+3. Configure .env
+4. Replace contexts and services
+5. Create first admin user
 
-**Starting fresh?**
-- Just use V8 ✅
-- Has everything
-- Follow integration guide once
-
----
-
-## Support Files
-
-Each version includes:
-- README.md - Overview
-- Integration guide - How to update
-- Feature documentation - What's new
-- Testing checklist - How to verify
-- Change summary - What changed
+### Earlier Versions
+See individual version documentation or start fresh with V12.
 
 ---
 
-## Future Versions (Planned)
+## Roadmap
 
-### V9 (Next):
-- Admin panel improvements
-- Lesson plan implementation
-- Announcement display for students
-- Real-time notifications
+### V13 (Planned)
+- [ ] Lesson plan implementation
+- [ ] Real-time notifications
+- [ ] Export reports (PDF)
+- [ ] Bulk operations UI
 
-### V10:
-- Progress charts and graphs
-- Export student reports
-- Bulk operations
-- Advanced analytics
+### V14 (Future)
+- [ ] Mobile app (React Native)
+- [ ] Offline mode
+- [ ] Push notifications
+- [ ] Video call integration
 
-### V11:
-- Production database (Supabase)
-- Password hashing (bcrypt)
-- JWT tokens
-- API key encryption
-
----
-
-## Changelog Format (Going Forward)
-
-Every new version will include:
-
-```markdown
-# V[X] - [Feature Name]
-
-## Changed Files: [Number]
-1. File path - What changed
-2. File path - What changed
-
-## New Features:
-- Feature 1
-- Feature 2
-
-## Auth Changes: ✅/❌
-- What changed in auth (if any)
-
-## Migration Guide:
-- Step by step instructions
-
-## Testing:
-- What to verify
-```
-
-This ensures you never have to re-implement existing systems! 🎯
+### V15 (Future)
+- [ ] Gamification (badges, streaks)
+- [ ] Spaced repetition system
+- [ ] Voice analysis/feedback
+- [ ] Multi-language support
 
 ---
 
-## V9 - Student Icon Navigation + Teacher Rename (Current)
-**Date:** December 2025
-**Focus:** UI consistency + name update
+## Support
 
-### Changed Files:
-1. `src/components/StudyGuidePanel.jsx` - Icon navigation redesign
-2. `src/contexts/AuthContext.jsx` - Teacher name update
-
-### Features Added:
-- Icon-based navigation for student guide (7 colored icons)
-- Color-coded tabs (blue, green, yellow, purple, orange, red, indigo)
-- Close button (X) on student guide
-- Redesigned header matching teacher dashboard
-- Mobile-first responsive design
-- Teacher renamed from "Zhang" to "Liwen"
-
-### Auth Changes: ❌ None (name update only)
-
-### Design Consistency:
-Now both Teacher Dashboard and Student Guide share:
-- Icon-first navigation
-- Color-coded sections
-- Mobile-first layouts
-- No horizontal scrollbars
-- Touch-friendly tap targets
-- Unified visual language
+- **GitHub Issues** - Bug reports and feature requests
+- **Documentation** - README.md, COMPLETE_GUIDE.md
+- **Version Docs** - VX_CHANGES_ONLY.md for each version
 
 ---
 
-## Quick Reference (Updated)
-
-| Version | What Changed | Files Modified | Auth Changes? |
-|---------|--------------|----------------|---------------|
-| v1 | Base app | All | N/A |
-| v2 | Bug fixes, dark theme | 4 files | ❌ No |
-| v3 | CORS proxy | 2 files | ❌ No |
-| v4 | Auth system added | 8 files | ✅ Yes - Initial |
-| v5 | Punctuation | 2 files | ❌ No |
-| v6 | Fixed icons | 1 file | ❌ No |
-| v7 | Role-based views | 6 files | ✅ Yes - Extended |
-| v8 | Mobile-first UI (teacher) | 2 files | ❌ No |
-| v9 | Student icons + rename | 2 files | ❌ No |
-
----
-
-## Feature Matrix (Updated)
-
-| Feature | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 |
-|---------|----|----|----|----|----|----|----|----|-----|
-| Basic Chat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Dark Theme | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CORS Proxy | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Login System | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Study Guides | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Punctuation | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Materials | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Improvements | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Announcements | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Teacher Mobile UI | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Student Icons | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Unified Design | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+**Current Version: 12.0.0**  
+**Last Updated: December 2025**
