@@ -1,126 +1,274 @@
 /**
- * Login Component
- * Handles user authentication
+ * Login Page Component - V11
+ * Mobile-first login with proper error handling and failed login screen
  */
 
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, User, Lock, AlertCircle } from 'lucide-react';
+import { LoginFailed } from './LoginFailed';
+import { Eye, EyeOff, Loader, User, Lock, Mail, ArrowRight } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const { login, register, loading: authLoading, error: authError } = useAuth();
+  
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showFailedScreen, setShowFailedScreen] = useState(false);
+  const [lastAttemptEmail, setLastAttemptEmail] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(null);
     setLoading(true);
+    setLastAttemptEmail(email);
 
     try {
-      await login(username, password);
-      // Redirect handled by App.jsx
+      if (isLogin) {
+        const result = await login(email, password);
+        if (!result.success) {
+          setError({ message: result.error || 'Login failed', code: 'invalid_credentials' });
+          setShowFailedScreen(true);
+        }
+      } else {
+        if (!displayName.trim()) {
+          setError({ message: 'Please enter your name', code: 'validation' });
+          setLoading(false);
+          return;
+        }
+        if (password.length < 6) {
+          setError({ message: 'Password must be at least 6 characters', code: 'validation' });
+          setLoading(false);
+          return;
+        }
+        const result = await register(email, password, displayName);
+        if (!result.success) {
+          setError({ message: result.error || 'Registration failed', code: 'registration_failed' });
+        }
+      }
     } catch (err) {
-      setError(err.message);
+      console.error('Auth error:', err);
+      setError({ 
+        message: err.message || 'An unexpected error occurred', 
+        code: err.code || 'unknown' 
+      });
+      if (isLogin) {
+        setShowFailedScreen(true);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const demoAccounts = [
-    { username: 'admin', password: 'admin123', role: 'Admin' },
-    { username: 'teacher1', password: 'teacher123', role: 'Teacher' },
-    { username: 'student1', password: 'student123', role: 'Student' }
-  ];
-
-  const fillDemo = (username, password) => {
-    setUsername(username);
-    setPassword(password);
-    setError('');
+  const handleRetry = async () => {
+    setShowFailedScreen(false);
+    setError(null);
+    // Keep the form populated so user can try again
   };
 
+  const handleBackToLogin = () => {
+    setShowFailedScreen(false);
+    setError(null);
+    setPassword('');
+  };
+
+  const handleForgotPassword = () => {
+    // Could implement password reset here
+    alert('Password reset functionality coming soon. Please contact your administrator.');
+  };
+
+  // Show failed login screen
+  if (showFailedScreen && error) {
+    return (
+      <LoginFailed
+        error={error}
+        email={lastAttemptEmail}
+        onRetry={handleRetry}
+        onBack={handleBackToLogin}
+        onForgotPassword={handleForgotPassword}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo and Title */}
+    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 rounded-full mb-4">
-            <span className="text-3xl">🇨🇳</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Mandarin Tutor
-          </h1>
-          <p className="text-gray-600">
-            Learn Chinese with AI-powered conversations
-          </p>
+          <span className="text-6xl">🇨🇳</span>
+          <h1 className="text-2xl font-bold text-gray-900 mt-4">Mandarin Tutor</h1>
+          <p className="text-gray-600 mt-1">Learn Chinese with AI</p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-            <LogIn className="mr-2" size={24} />
-            Sign In
-          </h2>
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          {/* Tab Toggle */}
+          <div className="flex border-b">
+            <button
+              onClick={() => {
+                setIsLogin(true);
+                setError(null);
+              }}
+              className={`flex-1 py-4 text-center font-medium transition-colors ${
+                isLogin
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => {
+                setIsLogin(false);
+                setError(null);
+              }}
+              className={`flex-1 py-4 text-center font-medium transition-colors ${
+                !isLogin
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Register
+            </button>
+          </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start">
-              <AlertCircle className="text-red-600 mr-2 flex-shrink-0 mt-0.5" size={18} />
-              <span className="text-red-700 text-sm">{error}</span>
-            </div>
-          )}
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* Error Message */}
+            {error && !showFailedScreen && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                {error.message}
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Name Field (Register only) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Your Name
+                </label>
+                <div className="relative">
+                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Email Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Enter username"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                   required
-                  autoComplete="username"
                 />
               </div>
             </div>
 
+            {/* Password Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Enter password"
+                  placeholder={isLogin ? 'Enter password' : 'Min 6 characters'}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                   required
-                  autoComplete="current-password"
+                  minLength={isLogin ? undefined : 6}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
+            {/* Forgot Password (Login only) */}
+            {isLogin && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={loading || authLoading}
+              className="w-full py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading || authLoading ? (
+                <Loader size={20} className="animate-spin" />
+              ) : (
+                <>
+                  {isLogin ? 'Sign In' : 'Create Account'}
+                  <ArrowRight size={18} className="ml-2" />
+                </>
+              )}
             </button>
           </form>
+
+          {/* Demo Accounts Info */}
+          <div className="px-6 pb-6">
+            <details className="group">
+              <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 flex items-center justify-center">
+                <span>Demo accounts</span>
+                <svg className="ml-1 w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-3 bg-gray-50 rounded-xl p-3 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Admin:</span>
+                  <span className="font-mono text-gray-900">admin / admin123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Teacher:</span>
+                  <span className="font-mono text-gray-900">teacher1 / teacher123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Student:</span>
+                  <span className="font-mono text-gray-900">student1 / student123</span>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-gray-600 mt-6">
-          A Midnight Conspiracy
+        <p className="text-center text-sm text-gray-500 mt-6">
+          By continuing, you agree to our Terms of Service
         </p>
       </div>
     </div>
