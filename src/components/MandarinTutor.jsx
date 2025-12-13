@@ -359,25 +359,9 @@ const MandarinTutor = () => {
       />
 
       {/* Study Guide Panel */}
-      {showStudyGuide && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl z-50 overflow-hidden">
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">Study Guide</h2>
-              <button
-                onClick={() => setShowStudyGuide(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <StudyGuidePanel
-                conversationHistory={conversationHistory}
-                onClose={() => setShowStudyGuide(false)}
-              />
-            </div>
-          </div>
+      {showStudyGuide && profile?.role === 'student' && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-hidden">
+          <StudyGuidePanel conversationHistory={conversationHistory} onClose={() => setShowStudyGuide(false)} />
         </div>
       )}
 

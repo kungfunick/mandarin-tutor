@@ -1,6 +1,7 @@
 /**
- * Login Page Component - V11
+ * Login Page Component - V12
  * Mobile-first login with proper error handling and failed login screen
+ * UPDATED: Removed demo accounts section
  */
 
 import { useState } from 'react';
@@ -67,7 +68,6 @@ export const LoginPage = () => {
   const handleRetry = async () => {
     setShowFailedScreen(false);
     setError(null);
-    // Keep the form populated so user can try again
   };
 
   const handleBackToLogin = () => {
@@ -77,7 +77,6 @@ export const LoginPage = () => {
   };
 
   const handleForgotPassword = () => {
-    // Could implement password reset here
     alert('Password reset functionality coming soon. Please contact your administrator.');
   };
 
@@ -95,18 +94,18 @@ export const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 p-4">
       <div className="w-full max-w-md">
-        {/* Logo/Brand */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-6xl">🇨🇳</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-4">Mandarin Tutor</h1>
-          <p className="text-gray-600 mt-1">Learn Chinese with AI</p>
+          <div className="text-5xl mb-2">🇨🇳</div>
+          <h1 className="text-2xl font-bold text-gray-900">Mandarin Tutor</h1>
+          <p className="text-gray-600">Learn Chinese with AI</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Tab Toggle */}
+          {/* Tabs */}
           <div className="flex border-b">
             <button
               onClick={() => {
@@ -238,32 +237,6 @@ export const LoginPage = () => {
               )}
             </button>
           </form>
-
-          {/* Demo Accounts Info */}
-          <div className="px-6 pb-6">
-            <details className="group">
-              <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 flex items-center justify-center">
-                <span>Demo accounts</span>
-                <svg className="ml-1 w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </summary>
-              <div className="mt-3 bg-gray-50 rounded-xl p-3 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Admin:</span>
-                  <span className="font-mono text-gray-900">admin / admin123</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Teacher:</span>
-                  <span className="font-mono text-gray-900">teacher1 / teacher123</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Student:</span>
-                  <span className="font-mono text-gray-900">student1 / student123</span>
-                </div>
-              </div>
-            </details>
-          </div>
         </div>
 
         {/* Footer */}
