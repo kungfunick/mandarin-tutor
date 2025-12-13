@@ -284,18 +284,43 @@ export const TeacherDashboard = ({ onClose }) => {
   const handleAssignStudent = async (studentId) => {
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Update the student's teacher_id
+      const { data, error } = await supabase
         .from('profiles')
         .update({ teacher_id: user.id })
-        .eq('id', studentId);
+        .eq('id', studentId)
+        .select()
+        .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        // If RLS blocks the update, show a more helpful message
+        if (error.code === '42501' || error.message?.includes('policy')) {
+          throw new Error('Permission denied. Please ask an admin to assign this student.');
+        }
+        throw error;
+      }
       
+      // Optimistically update the UI
+      const assignedStudent = unassignedStudents.find(s => s.id === studentId);
+      if (assignedStudent) {
+        setStudents(prev => [...prev, { ...assignedStudent, teacher_id: user.id }]);
+        setUnassignedStudents(prev => prev.filter(s => s.id !== studentId));
+      }
+      
+      // Close the modal
+      setShowAssignModal(false);
+      
+      // Show success message
+      setMessage({ type: 'success', text: `${assignedStudent?.display_name || 'Student'} assigned successfully` });
+      
+      // Reload data to ensure consistency
       await loadData();
-      setMessage({ type: 'success', text: 'Student assigned successfully' });
     } catch (err) {
       console.error('Error assigning student:', err);
-      setMessage({ type: 'error', text: 'Failed to assign student' });
+      setMessage({ type: 'error', text: err.message || 'Failed to assign student' });
+      // Reload to reset state
+      await loadData();
     } finally {
       setLoading(false);
     }
