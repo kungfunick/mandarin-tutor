@@ -225,13 +225,31 @@ export const TeacherDashboard = ({ onClose }) => {
       if (unassignedError) throw unassignedError;
       setUnassignedStudents(unassigned || []);
 
-      // Get study guides
-      const guides = await getAllStudyGuides();
-      const guidesMap = {};
-      (guides || []).forEach(g => {
-        if (g.user_id) guidesMap[g.user_id] = g;
-      });
-      setStudyGuides(guidesMap);
+      // Get study guides - getAllStudyGuides returns an object, not an array
+      const guidesFromContext = getAllStudyGuides();
+      // It's already a map/object keyed by user_id, so use it directly
+      if (guidesFromContext && typeof guidesFromContext === 'object') {
+        setStudyGuides(guidesFromContext);
+      } else {
+        setStudyGuides({});
+      }
+      
+      // Also fetch study guides directly from database for assigned students
+      if (assignedStudents && assignedStudents.length > 0) {
+        const studentIds = assignedStudents.map(s => s.id);
+        const { data: dbGuides, error: guidesError } = await supabase
+          .from('study_guides')
+          .select('*')
+          .in('user_id', studentIds);
+        
+        if (!guidesError && dbGuides) {
+          const guidesMap = { ...guidesFromContext };
+          dbGuides.forEach(g => {
+            if (g.user_id) guidesMap[g.user_id] = g;
+          });
+          setStudyGuides(guidesMap);
+        }
+      }
 
       // Get groups
       try {
