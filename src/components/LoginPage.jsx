@@ -1,13 +1,15 @@
 /**
- * Login Page Component - V12
- * Mobile-first login with proper error handling and failed login screen
- * UPDATED: Removed demo accounts section
+ * Login Page Component - V13
+ * UPDATES:
+ * - Respects registration enabled/disabled setting from admin
+ * - Removed demo accounts section
+ * - Shows message when registration is disabled
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginFailed } from './LoginFailed';
-import { Eye, EyeOff, Loader, User, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Loader, User, Lock, Mail, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export const LoginPage = () => {
   const { login, register, loading: authLoading, error: authError } = useAuth();
@@ -21,6 +23,39 @@ export const LoginPage = () => {
   const [error, setError] = useState(null);
   const [showFailedScreen, setShowFailedScreen] = useState(false);
   const [lastAttemptEmail, setLastAttemptEmail] = useState('');
+  
+  // Registration enabled state
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+
+  // Check if registration is enabled
+  useEffect(() => {
+    const checkRegistration = () => {
+      // Check localStorage for the setting
+      const stored = localStorage.getItem('registrationEnabled');
+      if (stored !== null) {
+        setRegistrationEnabled(stored === 'true');
+      }
+      
+      // Also check system_settings
+      const systemSettings = localStorage.getItem('system_settings');
+      if (systemSettings) {
+        try {
+          const parsed = JSON.parse(systemSettings);
+          if (parsed.registrationEnabled !== undefined) {
+            setRegistrationEnabled(parsed.registrationEnabled);
+          }
+        } catch (e) {
+          console.log('Could not parse system settings');
+        }
+      }
+    };
+    
+    checkRegistration();
+    
+    // Listen for storage changes (in case admin changes setting in another tab)
+    window.addEventListener('storage', checkRegistration);
+    return () => window.removeEventListener('storage', checkRegistration);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,6 +71,13 @@ export const LoginPage = () => {
           setShowFailedScreen(true);
         }
       } else {
+        // Check if registration is allowed
+        if (!registrationEnabled) {
+          setError({ message: 'Registration is currently disabled. Please contact an administrator.', code: 'registration_disabled' });
+          setLoading(false);
+          return;
+        }
+        
         if (!displayName.trim()) {
           setError({ message: 'Please enter your name', code: 'validation' });
           setLoading(false);
@@ -105,7 +147,7 @@ export const LoginPage = () => {
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Tabs */}
+          {/* Tabs - Only show Register tab if registration is enabled */}
           <div className="flex border-b">
             <button
               onClick={() => {
@@ -120,20 +162,36 @@ export const LoginPage = () => {
             >
               Sign In
             </button>
-            <button
-              onClick={() => {
-                setIsLogin(false);
-                setError(null);
-              }}
-              className={`flex-1 py-4 text-center font-medium transition-colors ${
-                !isLogin
-                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Register
-            </button>
+            {registrationEnabled ? (
+              <button
+                onClick={() => {
+                  setIsLogin(false);
+                  setError(null);
+                }}
+                className={`flex-1 py-4 text-center font-medium transition-colors ${
+                  !isLogin
+                    ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Register
+              </button>
+            ) : (
+              <div className="flex-1 py-4 text-center font-medium text-gray-300 cursor-not-allowed" title="Registration is disabled">
+                Register
+              </div>
+            )}
           </div>
+
+          {/* Registration Disabled Notice */}
+          {!registrationEnabled && !isLogin && (
+            <div className="p-4 bg-orange-50 border-b border-orange-100">
+              <div className="flex items-center text-orange-700">
+                <AlertTriangle size={18} className="mr-2" />
+                <span className="text-sm">Registration is currently disabled by administrator</span>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -145,7 +203,7 @@ export const LoginPage = () => {
             )}
 
             {/* Name Field (Register only) */}
-            {!isLogin && (
+            {!isLogin && registrationEnabled && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Your Name
@@ -224,7 +282,7 @@ export const LoginPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || authLoading}
+              disabled={loading || authLoading || (!isLogin && !registrationEnabled)}
               className="w-full py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
             >
               {loading || authLoading ? (
