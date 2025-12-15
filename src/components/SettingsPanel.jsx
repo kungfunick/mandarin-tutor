@@ -480,15 +480,17 @@ export const SettingsPanel = ({
                   <span className="text-sm font-medium text-red-700">Admin Only: AI Provider</span>
                 </div>
                 <select
-                  value={aiProvider}
+                  value={aiProvider || 'claude'}
                   onChange={(e) => setAiProvider(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 >
                   <option value="claude">Claude (Anthropic)</option>
                   <option value="openai">GPT-4 (OpenAI)</option>
                   <option value="gemini">Gemini (Google)</option>
-                  {customProviders?.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                  {Array.isArray(customProviders) && customProviders.map(p => (
+                    <option key={p?.id || Math.random()} value={p?.id || ''}>
+                      {p?.name || 'Custom Provider'}
+                    </option>
                   ))}
                 </select>
                 <button
@@ -538,7 +540,11 @@ export const SettingsPanel = ({
               <div className="flex items-center">
                 <Cloud size={16} className="mr-2 text-gray-500" />
                 <span className="text-sm text-gray-600">
-                  Current AI Provider: <span className="font-medium">{currentProvider || aiProvider}</span>
+                  Current AI Provider: <span className="font-medium">
+                    {typeof currentProvider === 'object' 
+                      ? (currentProvider?.name || currentProvider?.model || 'Unknown')
+                      : (currentProvider || aiProvider || 'Not set')}
+                  </span>
                 </span>
               </div>
             </div>

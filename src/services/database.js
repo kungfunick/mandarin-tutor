@@ -291,13 +291,25 @@ export const getMaterialsForStudent = async (studentId) => {
   if (!studentId) return [];
   
   try {
+    // Get materials assigned to this student OR global materials
     const { data, error } = await supabase
       .from('learning_materials')
       .select('*')
-      .or(`student_id.eq.${studentId},is_global.eq.true`)
+      .or(`student_id.eq.${studentId},is_global.is.true`)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      // If the or filter fails, try a simpler approach
+      console.warn('Materials query failed, trying fallback:', error);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('learning_materials')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+      
+      if (fallbackError) throw fallbackError;
+      return fallbackData || [];
+    }
     return data || [];
   } catch (error) {
     console.error('Get materials error:', error);
@@ -393,15 +405,27 @@ export const getAnnouncementsForStudent = async (studentId) => {
   if (!studentId) return [];
   
   try {
-    // Get global announcements and those for this student's teacher
+    // Get global announcements and those for this student
     const { data, error } = await supabase
       .from('announcements')
       .select('*, teacher:profiles!announcements_teacher_id_fkey(display_name)')
-      .or(`is_global.eq.true,student_id.eq.${studentId}`)
+      .or(`is_global.is.true,student_id.eq.${studentId}`)
       .order('created_at', { ascending: false })
       .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      // If the or filter fails, try getting just global announcements
+      console.warn('Announcements query failed, trying fallback:', error);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('announcements')
+        .select('*, teacher:profiles!announcements_teacher_id_fkey(display_name)')
+        .eq('is_global', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (fallbackError) throw fallbackError;
+      return fallbackData || [];
+    }
     return data || [];
   } catch (error) {
     console.error('Get announcements error:', error);
