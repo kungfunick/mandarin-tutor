@@ -1,6 +1,9 @@
 /**
- * Supabase Client Configuration
- * Handles database connection and authentication with session validation
+ * Supabase Client Configuration - V14
+ * UPDATES:
+ * - Improved signOut with thorough cleanup
+ * - Better session validation
+ * - Profile update support including avatar
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -79,7 +82,9 @@ export const signUp = async (email, password, displayName, role = 'student') => 
         id: authData.user.id,
         email: email,
         display_name: displayName,
-        role: role
+        role: role,
+        avatar_type: 'panda',
+        avatar_url: null
       }
     };
   } catch (error) {
@@ -96,7 +101,13 @@ export const signIn = async (email, password) => {
       password,
     });
 
-    if (error) throw error;
+    if (error) {
+      // Provide more specific error messages
+      if (error.message?.includes('Invalid login credentials')) {
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      }
+      throw error;
+    }
 
     // Update last login
     await supabase
@@ -120,18 +131,39 @@ export const signIn = async (email, password) => {
   }
 };
 
-// Sign out with cleanup
+// Complete sign out with thorough cleanup
 export const signOut = async () => {
   try {
-    // Clear local storage first
+    console.log('Signing out...');
+    
+    // 1. Sign out from Supabase (both local and server)
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    
+    if (error) {
+      console.warn('Supabase signOut returned error:', error);
+      // Continue with cleanup anyway
+    }
+    
+    // 2. Clear the specific auth storage key
     localStorage.removeItem('mandarin-tutor-auth');
     
-    // Sign out from Supabase
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
-    if (error) throw error;
+    // 3. Clear any other Supabase-related storage
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // 4. Clear session storage
+    sessionStorage.clear();
+    
+    console.log('Sign out complete');
   } catch (error) {
     console.error('Sign out error:', error);
-    // Even if there's an error, clear local state
+    // Force cleanup even on error
     localStorage.removeItem('mandarin-tutor-auth');
     throw error;
   }
@@ -184,13 +216,31 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Update user profile
+// Update user profile (including avatar)
 export const updateProfile = async (userId, updates) => {
   try {
+    // Filter allowed fields
+    const allowedFields = [
+      'display_name', 
+      'avatar_type', 
+      'avatar_url',
+      'email',
+      'role',
+      'teacher_id',
+      'is_active'
+    ];
+    
+    const filteredUpdates = {};
+    for (const key of Object.keys(updates)) {
+      if (allowedFields.includes(key)) {
+        filteredUpdates[key] = updates[key];
+      }
+    }
+    
     const { data, error } = await supabase
       .from('profiles')
       .update({
-        ...updates,
+        ...filteredUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
@@ -325,12 +375,15 @@ export const unsubscribe = (channel) => {
  * Storage Helper Functions
  */
 
-// Upload file
+// Upload file (for avatar uploads)
 export const uploadFile = async (bucket, path, file) => {
   try {
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file);
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
 
     if (error) throw error;
     return data;
@@ -359,6 +412,59 @@ export const deleteFile = async (bucket, path) => {
     if (error) throw error;
   } catch (error) {
     console.error('Delete file error:', error);
+    throw error;
+  }
+};
+
+/**
+ * System Settings Helper
+ */
+
+// Get system settings
+export const getSystemSettings = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('*')
+      .eq('id', 1)
+      .single();
+
+    if (error) {
+      console.warn('Could not fetch system settings:', error);
+      return null;
+    }
+
+    return {
+      registrationEnabled: data.registration_enabled ?? true,
+      globalDebugEnabled: data.global_debug_enabled ?? false,
+      maintenanceMode: data.maintenance_mode ?? false
+    };
+  } catch (error) {
+    console.error('Get system settings error:', error);
+    return null;
+  }
+};
+
+// Update system settings (admin only)
+export const updateSystemSettings = async (settings, userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .upsert({
+        id: 1,
+        registration_enabled: settings.registrationEnabled,
+        global_debug_enabled: settings.globalDebugEnabled,
+        maintenance_mode: settings.maintenanceMode,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Update system settings error:', error);
     throw error;
   }
 };

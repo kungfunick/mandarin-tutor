@@ -1,7 +1,10 @@
 /**
- * AuthContext - Supabase Authentication
- * Manages user authentication and authorization with real database
- * Fixed version with all helper functions and session validation
+ * AuthContext - Supabase Authentication - V14
+ * UPDATES:
+ * - Complete logout with thorough session cleanup
+ * - Better error messages for wrong password
+ * - Session validation improvements
+ * - Profile update support including avatar
  */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -45,7 +48,7 @@ export const AuthProvider = ({ children }) => {
       
       if (error || !session) {
         console.log('Session invalid or expired, logging out...');
-        await handleLogout();
+        await performCompleteLogout();
         return false;
       }
 
@@ -54,46 +57,100 @@ export const AuthProvider = ({ children }) => {
       
       if (userError || !serverUser) {
         console.log('Server session invalid, logging out...');
-        await handleLogout();
+        await performCompleteLogout();
         return false;
       }
 
       return true;
     } catch (err) {
       console.error('Session validation error:', err);
-      await handleLogout();
+      await performCompleteLogout();
       return false;
     }
   }, []);
 
-  // Handle logout (internal function)
-  const handleLogout = async () => {
+  // Thorough logout that clears everything
+  const performCompleteLogout = async () => {
     try {
-      // Clear local state first
+      console.log('Performing complete logout...');
+      
+      // 1. Clear React state first
       setUser(null);
       setProfile(null);
       setAllUsers([]);
       setStudents([]);
       setTeachers([]);
+      setError(null);
       
-      // Clear ALL localStorage items (complete cleanup)
+      // 2. Clear Supabase session
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (e) {
+        console.warn('Supabase signOut error (continuing cleanup):', e);
+      }
+      
+      // 3. Clear ALL localStorage items related to the app
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
-        keysToRemove.push(localStorage.key(i));
+        const key = localStorage.key(i);
+        // Remove auth-related and app-specific items
+        if (key && (
+          key.includes('supabase') ||
+          key.includes('mandarin') ||
+          key.includes('auth') ||
+          key.includes('sb-') ||
+          key === 'showDebugUI' ||
+          key === 'aiProvider' ||
+          key === 'difficulty' ||
+          key === 'showTranslations' ||
+          key === 'conversationHistory' ||
+          key === 'correctionMode' ||
+          key === 'theme' ||
+          key === 'voiceGender'
+        )) {
+          keysToRemove.push(key);
+        }
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
+      keysToRemove.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`Failed to remove ${key}:`, e);
+        }
+      });
       
-      // Clear sessionStorage too
-      sessionStorage.clear();
+      // 4. Clear sessionStorage
+      try {
+        sessionStorage.clear();
+      } catch (e) {
+        console.warn('SessionStorage clear error:', e);
+      }
       
-      // Sign out from Supabase (this clears Supabase's internal storage)
-      await supabase.auth.signOut({ scope: 'global' });
+      // 5. Clear any IndexedDB data (Supabase uses this)
+      try {
+        const databases = await indexedDB.databases?.();
+        if (databases) {
+          for (const db of databases) {
+            if (db.name && (db.name.includes('supabase') || db.name.includes('sb-'))) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('IndexedDB cleanup error:', e);
+      }
       
-      // Force reload to ensure clean state
-      window.location.href = '/';
+      console.log('Complete logout finished');
+      
+      // 6. Force page reload to ensure clean state
+      // Small delay to ensure cleanup completes
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
+      
     } catch (err) {
       console.error('Logout cleanup error:', err);
-      // Even on error, try to force a clean state
+      // Force reload even on error
       localStorage.clear();
       sessionStorage.clear();
       window.location.href = '/';
@@ -147,7 +204,7 @@ export const AuthProvider = ({ children }) => {
         console.error('Init auth error:', err);
         if (mounted) {
           setError(err.message);
-          await handleLogout();
+          await performCompleteLogout();
         }
       } finally {
         if (mounted) {
@@ -168,7 +225,7 @@ export const AuthProvider = ({ children }) => {
         setUser(session.user);
         setProfile(userProfile);
         await loadRoleData(userProfile);
-      } else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
+      } else if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
         setUser(null);
         setProfile(null);
         setAllUsers([]);
@@ -206,11 +263,12 @@ export const AuthProvider = ({ children }) => {
     };
   }, [validateSession, loadRoleData]);
 
-  // Login function
+  // Login function with better error messages
   const login = async (email, password) => {
     try {
       setError(null);
       setLoading(true);
+      
       const { user: authUser, profile: userProfile } = await signIn(email, password);
       setUser(authUser);
       setProfile(userProfile);
@@ -218,9 +276,29 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = err.message || 'Login failed';
+      
+      // Parse error message for better user feedback
+      let errorMessage = 'Login failed';
+      const errMsg = err.message?.toLowerCase() || '';
+      
+      if (errMsg.includes('invalid login credentials') || 
+          errMsg.includes('invalid email or password') ||
+          errMsg.includes('invalid_credentials')) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (errMsg.includes('email not confirmed')) {
+        errorMessage = 'Please confirm your email address before logging in.';
+      } else if (errMsg.includes('too many requests') || errMsg.includes('rate limit')) {
+        errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+      } else if (errMsg.includes('network') || errMsg.includes('fetch')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (errMsg.includes('user not found')) {
+        errorMessage = 'No account found with this email address.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
       setError(errorMessage);
-      throw new Error(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
@@ -242,7 +320,20 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (err) {
       console.error('Register error:', err);
-      const errorMessage = err.message || 'Registration failed';
+      
+      let errorMessage = 'Registration failed';
+      const errMsg = err.message?.toLowerCase() || '';
+      
+      if (errMsg.includes('already registered') || errMsg.includes('already exists')) {
+        errorMessage = 'An account with this email already exists.';
+      } else if (errMsg.includes('password') && errMsg.includes('weak')) {
+        errorMessage = 'Password is too weak. Please use at least 6 characters.';
+      } else if (errMsg.includes('invalid email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
       setError(errorMessage);
       return { success: false, error: errorMessage };
     } finally {
@@ -254,22 +345,22 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setError(null);
-      await handleLogout();
+      await performCompleteLogout();
       return { success: true };
     } catch (err) {
       console.error('Logout error:', err);
-      const errorMessage = err.message || 'Logout failed';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
+      // Even on error, force logout
+      await performCompleteLogout();
+      return { success: true }; // Return success anyway since we're forcing logout
     }
   };
 
-  // Update user profile
+  // Update user profile (including avatar)
   const updateUserProfile = async (updates) => {
     try {
       setError(null);
       const updated = await updateProfile(user.id, updates);
-      setProfile(updated);
+      setProfile(prev => ({ ...prev, ...updated }));
       return { success: true, profile: updated };
     } catch (err) {
       console.error('Update profile error:', err);
@@ -300,8 +391,8 @@ export const AuthProvider = ({ children }) => {
       await resetPasswordRequest(email);
       return { success: true };
     } catch (err) {
-      console.error('Password reset request error:', err);
-      const errorMessage = err.message || 'Password reset request failed';
+      console.error('Password reset error:', err);
+      const errorMessage = err.message || 'Password reset failed';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -310,43 +401,64 @@ export const AuthProvider = ({ children }) => {
   // Refresh user data
   const refreshUser = async () => {
     try {
-      if (!user?.id) return;
-      const refreshed = await getUserById(user.id);
-      setProfile(refreshed);
-      setUser({ ...user, ...refreshed });
-      await loadRoleData(refreshed);
+      const currentUser = await getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        setProfile(currentUser);
+        await loadRoleData(currentUser);
+      }
+      return { success: true };
     } catch (err) {
       console.error('Refresh user error:', err);
+      return { success: false, error: err.message };
     }
   };
 
-  // =============================================
-  // HELPER FUNCTIONS FOR COMPONENTS
-  // =============================================
-
-  // Get students for a teacher
-  const getStudents = useCallback((teacherId) => {
-    if (!teacherId) return students;
-    return allUsers.filter(u => u.teacher_id === teacherId && u.role === 'student');
-  }, [allUsers, students]);
-
-  // Get teacher for a student
-  const getTeacher = useCallback((teacherId) => {
-    if (!teacherId) return null;
-    return allUsers.find(u => u.id === teacherId) || teachers.find(t => t.id === teacherId);
-  }, [allUsers, teachers]);
-
   // Get all users (admin only)
-  const getAllUsers = useCallback(() => {
-    return allUsers;
-  }, [allUsers]);
+  const getAllUsers = async () => {
+    try {
+      const users = await fetchAllUsers();
+      setAllUsers(users || []);
+      return users;
+    } catch (err) {
+      console.error('Get all users error:', err);
+      return [];
+    }
+  };
 
-  // Update user (admin only)
+  // Get students for teacher
+  const getStudents = async () => {
+    if (profile?.role !== 'teacher') return [];
+    try {
+      const studentList = await getStudentsByTeacher(profile.id);
+      setStudents(studentList || []);
+      return studentList;
+    } catch (err) {
+      console.error('Get students error:', err);
+      return [];
+    }
+  };
+
+  // Get teacher for student
+  const getTeacher = async () => {
+    if (!profile?.teacher_id) return null;
+    try {
+      return await getUserById(profile.teacher_id);
+    } catch (err) {
+      console.error('Get teacher error:', err);
+      return null;
+    }
+  };
+
+  // Update user (admin or self)
   const updateUser = async (userId, updates) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', userId)
         .select()
         .single();
@@ -357,7 +469,7 @@ export const AuthProvider = ({ children }) => {
       const users = await fetchAllUsers();
       setAllUsers(users || []);
 
-      return { success: true, user: data };
+      return { success: true, profile: data };
     } catch (err) {
       console.error('Update user error:', err);
       return { success: false, error: err.message };
@@ -422,7 +534,9 @@ export const AuthProvider = ({ children }) => {
         'manage_system',
         'reset_passwords',
         'view_debug',
-        'api_config'
+        'api_config',
+        'toggle_registration',
+        'toggle_debug'
       ],
       teacher: [
         'view_students',
@@ -430,14 +544,15 @@ export const AuthProvider = ({ children }) => {
         'manage_materials',
         'manage_announcements',
         'view_student_progress',
-        'view_all_settings'
+        'create_groups'
       ],
       student: [
         'view_own_data',
         'update_own_profile',
         'view_study_guide',
         'view_announcements',
-        'view_materials'
+        'view_materials',
+        'practice_chat'
       ]
     };
 

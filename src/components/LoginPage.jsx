@@ -1,15 +1,19 @@
 /**
- * Login Page Component - V13
+ * Login Page Component - V14
  * UPDATES:
- * - Respects registration enabled/disabled setting from admin
- * - Removed demo accounts section
- * - Shows message when registration is disabled
+ * - Better error messages for wrong password
+ * - Proper registration enabled/disabled from global settings
+ * - Shows clear error message when login fails
+ * - Mobile-first responsive design
  */
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginFailed } from './LoginFailed';
-import { Eye, EyeOff, Loader, User, Lock, Mail, ArrowRight, AlertTriangle } from 'lucide-react';
+import { 
+  Eye, EyeOff, Loader, User, Lock, Mail, ArrowRight, 
+  AlertTriangle, AlertCircle
+} from 'lucide-react';
 
 export const LoginPage = () => {
   const { login, register, loading: authLoading, error: authError } = useAuth();
@@ -24,37 +28,51 @@ export const LoginPage = () => {
   const [showFailedScreen, setShowFailedScreen] = useState(false);
   const [lastAttemptEmail, setLastAttemptEmail] = useState('');
   
-  // Registration enabled state
+  // Registration enabled state - from global admin settings
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
 
-  // Check if registration is enabled
+  // Check if registration is enabled from global settings
   useEffect(() => {
     const checkRegistration = () => {
-      // Check localStorage for the setting
-      const stored = localStorage.getItem('registrationEnabled');
-      if (stored !== null) {
-        setRegistrationEnabled(stored === 'true');
-      }
-      
-      // Also check system_settings
+      // Check system_settings first (set by admin)
       const systemSettings = localStorage.getItem('system_settings');
       if (systemSettings) {
         try {
           const parsed = JSON.parse(systemSettings);
           if (parsed.registrationEnabled !== undefined) {
             setRegistrationEnabled(parsed.registrationEnabled);
+            return;
           }
         } catch (e) {
           console.log('Could not parse system settings');
         }
+      }
+      
+      // Fallback to individual setting
+      const stored = localStorage.getItem('registrationEnabled');
+      if (stored !== null) {
+        setRegistrationEnabled(stored === 'true');
       }
     };
     
     checkRegistration();
     
     // Listen for storage changes (in case admin changes setting in another tab)
-    window.addEventListener('storage', checkRegistration);
-    return () => window.removeEventListener('storage', checkRegistration);
+    const handleStorageChange = (e) => {
+      if (e.key === 'system_settings' || e.key === 'registrationEnabled') {
+        checkRegistration();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically in case of same-tab changes
+    const interval = setInterval(checkRegistration, 2000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -67,13 +85,19 @@ export const LoginPage = () => {
       if (isLogin) {
         const result = await login(email, password);
         if (!result.success) {
-          setError({ message: result.error || 'Login failed', code: 'invalid_credentials' });
-          setShowFailedScreen(true);
+          // Show inline error for login failures
+          setError({ 
+            message: result.error || 'Invalid email or password', 
+            code: 'invalid_credentials' 
+          });
         }
       } else {
         // Check if registration is allowed
         if (!registrationEnabled) {
-          setError({ message: 'Registration is currently disabled. Please contact an administrator.', code: 'registration_disabled' });
+          setError({ 
+            message: 'Registration is currently disabled. Please contact an administrator.', 
+            code: 'registration_disabled' 
+          });
           setLoading(false);
           return;
         }
@@ -99,9 +123,6 @@ export const LoginPage = () => {
         message: err.message || 'An unexpected error occurred', 
         code: err.code || 'unknown' 
       });
-      if (isLogin) {
-        setShowFailedScreen(true);
-      }
     } finally {
       setLoading(false);
     }
@@ -122,7 +143,7 @@ export const LoginPage = () => {
     alert('Password reset functionality coming soon. Please contact your administrator.');
   };
 
-  // Show failed login screen
+  // Show failed login screen for severe failures
   if (showFailedScreen && error) {
     return (
       <LoginFailed
@@ -177,7 +198,10 @@ export const LoginPage = () => {
                 Register
               </button>
             ) : (
-              <div className="flex-1 py-4 text-center font-medium text-gray-300 cursor-not-allowed" title="Registration is disabled">
+              <div 
+                className="flex-1 py-4 text-center font-medium text-gray-300 cursor-not-allowed" 
+                title="Registration is disabled by administrator"
+              >
                 Register
               </div>
             )}
@@ -187,7 +211,7 @@ export const LoginPage = () => {
           {!registrationEnabled && !isLogin && (
             <div className="p-4 bg-orange-50 border-b border-orange-100">
               <div className="flex items-center text-orange-700">
-                <AlertTriangle size={18} className="mr-2" />
+                <AlertTriangle size={18} className="mr-2 flex-shrink-0" />
                 <span className="text-sm">Registration is currently disabled by administrator</span>
               </div>
             </div>
@@ -195,10 +219,25 @@ export const LoginPage = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Error Message */}
-            {error && !showFailedScreen && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                {error.message}
+            {/* Error Message - Always visible when there's an error */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div className="flex items-start">
+                  <AlertCircle size={20} className="text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-700 font-medium">
+                      {isLogin ? 'Login Failed' : 'Error'}
+                    </p>
+                    <p className="text-red-600 text-sm mt-1">
+                      {error.message}
+                    </p>
+                    {isLogin && error.code === 'invalid_credentials' && (
+                      <p className="text-red-500 text-xs mt-2">
+                        Please check your email and password are correct.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -232,9 +271,14 @@ export const LoginPage = () => {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (error) setError(null);
+                  }}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${
+                    error?.code === 'invalid_credentials' ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   required
                 />
               </div>
@@ -250,9 +294,14 @@ export const LoginPage = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
                   placeholder={isLogin ? 'Enter password' : 'Min 6 characters'}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${
+                    error?.code === 'invalid_credentials' ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   required
                   minLength={isLogin ? undefined : 6}
                 />
@@ -295,12 +344,51 @@ export const LoginPage = () => {
               )}
             </button>
           </form>
+
+          {/* Footer */}
+          <div className="px-6 pb-6 text-center">
+            <p className="text-sm text-gray-500">
+              {isLogin ? (
+                registrationEnabled ? (
+                  <>
+                    Don't have an account?{' '}
+                    <button
+                      onClick={() => {
+                        setIsLogin(false);
+                        setError(null);
+                      }}
+                      className="text-red-600 hover:text-red-700 font-medium"
+                    >
+                      Register
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-gray-400">
+                    Contact your administrator to get an account
+                  </span>
+                )
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => {
+                      setIsLogin(true);
+                      setError(null);
+                    }}
+                    className="text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Sign In
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          By continuing, you agree to our Terms of Service
-        </p>
+        {/* Version Info */}
+        <div className="text-center mt-6 text-xs text-gray-400">
+          Mandarin Tutor v14.0
+        </div>
       </div>
     </div>
   );
