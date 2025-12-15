@@ -1,6 +1,9 @@
 /**
- * Database Operations Service
+ * Database Operations Service - V14
  * All CRUD operations for Mandarin Tutor
+ * UPDATES:
+ * - Fixed getUserById to use maybeSingle() to prevent errors when no user found
+ * - Added better error handling for empty results
  */
 
 import { supabase } from './supabase';
@@ -18,32 +21,36 @@ export const getAllUsers = async () => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get all users error:', error);
     throw error;
   }
 };
 
-// Get user by ID
+// Get user by ID - uses maybeSingle() to handle missing users gracefully
 export const getUserById = async (userId) => {
+  if (!userId) return null;
+  
   try {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Changed from .single() - returns null instead of error if not found
 
     if (error) throw error;
-    return data;
+    return data; // Will be null if not found
   } catch (error) {
     console.error('Get user by ID error:', error);
-    throw error;
+    return null; // Return null instead of throwing to prevent cascading errors
   }
 };
 
 // Get students by teacher ID
 export const getStudentsByTeacher = async (teacherId) => {
+  if (!teacherId) return [];
+  
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -53,10 +60,10 @@ export const getStudentsByTeacher = async (teacherId) => {
       .order('display_name');
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get students by teacher error:', error);
-    throw error;
+    return []; // Return empty array instead of throwing
   }
 };
 
@@ -70,10 +77,10 @@ export const getAllTeachers = async () => {
       .order('display_name');
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get all teachers error:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -154,18 +161,20 @@ export const assignStudentToTeacher = async (studentId, teacherId) => {
 
 // Get study guide by user ID
 export const getStudyGuide = async (userId) => {
+  if (!userId) return null;
+  
   try {
     const { data, error } = await supabase
       .from('study_guides')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // Changed from .single()
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    if (error && error.code !== 'PGRST116') throw error;
     return data;
   } catch (error) {
     console.error('Get study guide error:', error);
-    throw error;
+    return null;
   }
 };
 
@@ -203,7 +212,7 @@ export const updateStudyGuideStats = async (userId, stats) => {
       })
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return data;
@@ -217,32 +226,35 @@ export const updateStudyGuideStats = async (userId, stats) => {
  * OBSERVATIONS
  */
 
-// Get observations for student
+// Get observations for a student
 export const getObservationsByStudent = async (studentId) => {
+  if (!studentId) return [];
+  
   try {
     const { data, error } = await supabase
       .from('observations')
-      .select('*, teacher:teacher_id(display_name)')
+      .select('*, teacher:profiles!observations_teacher_id_fkey(display_name, email)')
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get observations error:', error);
-    throw error;
+    return [];
   }
 };
 
 // Add observation
-export const addObservation = async (studentId, teacherId, text) => {
+export const addObservation = async (teacherId, studentId, content, type = 'note') => {
   try {
     const { data, error } = await supabase
       .from('observations')
       .insert([{
-        student_id: studentId,
         teacher_id: teacherId,
-        text: text
+        student_id: studentId,
+        content,
+        type
       }])
       .select()
       .single();
@@ -274,78 +286,47 @@ export const deleteObservation = async (observationId) => {
  * LEARNING MATERIALS
  */
 
-// Get materials for student (global + assigned)
-export const getMaterialsForStudent = async (studentId, teacherId) => {
-  try {
-    const { data, error } = await supabase
-      .from('learning_materials')
-      .select('*, teacher:teacher_id(display_name)')
-      .or(`is_global.eq.true,student_ids.cs.{${studentId}}`)
-      .eq('teacher_id', teacherId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Get materials for student error:', error);
-    throw error;
-  }
-};
-
-// Get all materials by teacher
-export const getMaterialsByTeacher = async (teacherId) => {
+// Get materials for a student
+export const getMaterialsForStudent = async (studentId) => {
+  if (!studentId) return [];
+  
   try {
     const { data, error } = await supabase
       .from('learning_materials')
       .select('*')
-      .eq('teacher_id', teacherId)
+      .or(`student_id.eq.${studentId},is_global.eq.true`)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
-    console.error('Get materials by teacher error:', error);
-    throw error;
+    console.error('Get materials error:', error);
+    return [];
   }
 };
 
-// Add learning material
-export const addLearningMaterial = async (materialData) => {
+// Add material
+export const addMaterial = async (teacherId, material) => {
   try {
     const { data, error } = await supabase
       .from('learning_materials')
-      .insert([materialData])
+      .insert([{
+        teacher_id: teacherId,
+        ...material
+      }])
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Add learning material error:', error);
+    console.error('Add material error:', error);
     throw error;
   }
 };
 
-// Update learning material
-export const updateLearningMaterial = async (materialId, updates) => {
-  try {
-    const { data, error } = await supabase
-      .from('learning_materials')
-      .update(updates)
-      .eq('id', materialId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Update learning material error:', error);
-    throw error;
-  }
-};
-
-// Delete learning material
-export const deleteLearningMaterial = async (materialId) => {
+// Delete material
+export const deleteMaterial = async (materialId) => {
   try {
     const { error } = await supabase
       .from('learning_materials')
@@ -354,7 +335,7 @@ export const deleteLearningMaterial = async (materialId) => {
 
     if (error) throw error;
   } catch (error) {
-    console.error('Delete learning material error:', error);
+    console.error('Delete material error:', error);
     throw error;
   }
 };
@@ -363,51 +344,42 @@ export const deleteLearningMaterial = async (materialId) => {
  * AREAS TO IMPROVE
  */
 
-// Get improvements for student
+// Get improvements for a student
 export const getImprovementsByStudent = async (studentId) => {
+  if (!studentId) return [];
+  
   try {
     const { data, error } = await supabase
       .from('areas_to_improve')
-      .select('*, teacher:teacher_id(display_name)')
+      .select('*')
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get improvements error:', error);
-    throw error;
+    return [];
   }
 };
 
-// Add improvement area
-export const addImprovementArea = async (improvementData) => {
+// Add improvement
+export const addImprovement = async (teacherId, studentId, content) => {
   try {
     const { data, error } = await supabase
       .from('areas_to_improve')
-      .insert([improvementData])
+      .insert([{
+        teacher_id: teacherId,
+        student_id: studentId,
+        content
+      }])
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Add improvement area error:', error);
-    throw error;
-  }
-};
-
-// Delete improvement area
-export const deleteImprovementArea = async (improvementId) => {
-  try {
-    const { error } = await supabase
-      .from('areas_to_improve')
-      .delete()
-      .eq('id', improvementId);
-
-    if (error) throw error;
-  } catch (error) {
-    console.error('Delete improvement area error:', error);
+    console.error('Add improvement error:', error);
     throw error;
   }
 };
@@ -416,47 +388,39 @@ export const deleteImprovementArea = async (improvementId) => {
  * ANNOUNCEMENTS
  */
 
-// Get announcements for student (global from their teacher)
-export const getAnnouncementsForStudent = async (teacherId) => {
+// Get announcements for a student
+export const getAnnouncementsForStudent = async (studentId) => {
+  if (!studentId) return [];
+  
   try {
+    // Get global announcements and those for this student's teacher
     const { data, error } = await supabase
       .from('announcements')
-      .select('*, teacher:teacher_id(display_name)')
-      .eq('teacher_id', teacherId)
-      .eq('is_global', true)
-      .order('created_at', { ascending: false });
+      .select('*, teacher:profiles!announcements_teacher_id_fkey(display_name)')
+      .or(`is_global.eq.true,student_id.eq.${studentId}`)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
-    console.error('Get announcements for student error:', error);
-    throw error;
-  }
-};
-
-// Get announcements by teacher
-export const getAnnouncementsByTeacher = async (teacherId) => {
-  try {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .eq('teacher_id', teacherId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Get announcements by teacher error:', error);
-    throw error;
+    console.error('Get announcements error:', error);
+    return [];
   }
 };
 
 // Add announcement
-export const addAnnouncement = async (announcementData) => {
+export const addAnnouncement = async (teacherId, content, options = {}) => {
   try {
     const { data, error } = await supabase
       .from('announcements')
-      .insert([announcementData])
+      .insert([{
+        teacher_id: teacherId,
+        content,
+        is_global: options.isGlobal || false,
+        student_id: options.studentId || null,
+        priority: options.priority || 'normal'
+      }])
       .select()
       .single();
 
@@ -468,39 +432,27 @@ export const addAnnouncement = async (announcementData) => {
   }
 };
 
-// Delete announcement
-export const deleteAnnouncement = async (announcementId) => {
-  try {
-    const { error } = await supabase
-      .from('announcements')
-      .delete()
-      .eq('id', announcementId);
-
-    if (error) throw error;
-  } catch (error) {
-    console.error('Delete announcement error:', error);
-    throw error;
-  }
-};
-
 /**
  * CONVERSATIONS
  */
 
-// Get conversations by user
-export const getConversationsByUser = async (userId) => {
+// Get conversations for user
+export const getConversations = async (userId) => {
+  if (!userId) return [];
+  
   try {
     const { data, error } = await supabase
       .from('conversations')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get conversations error:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -511,8 +463,8 @@ export const saveConversation = async (userId, messages, title) => {
       .from('conversations')
       .insert([{
         user_id: userId,
-        messages: messages,
-        title: title
+        messages,
+        title: title || `Conversation ${new Date().toLocaleDateString()}`
       }])
       .select()
       .single();
@@ -541,20 +493,103 @@ export const deleteConversation = async (conversationId) => {
 };
 
 /**
+ * TEACHER GROUPS
+ */
+
+// Get groups for teacher
+export const getTeacherGroups = async (teacherId) => {
+  if (!teacherId) return [];
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_groups')
+      .select(`
+        *,
+        members:group_members(
+          student:profiles(id, display_name, email)
+        )
+      `)
+      .eq('teacher_id', teacherId)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Get teacher groups error:', error);
+    return [];
+  }
+};
+
+// Create group
+export const createGroup = async (teacherId, name, description = '') => {
+  try {
+    const { data, error } = await supabase
+      .from('teacher_groups')
+      .insert([{
+        teacher_id: teacherId,
+        name,
+        description
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Create group error:', error);
+    throw error;
+  }
+};
+
+// Add student to group
+export const addStudentToGroup = async (groupId, studentId) => {
+  try {
+    const { data, error } = await supabase
+      .from('group_members')
+      .insert([{
+        group_id: groupId,
+        student_id: studentId
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Add student to group error:', error);
+    throw error;
+  }
+};
+
+// Remove student from group
+export const removeStudentFromGroup = async (groupId, studentId) => {
+  try {
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('student_id', studentId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Remove student from group error:', error);
+    throw error;
+  }
+};
+
+/**
  * STATISTICS (for Admin Dashboard)
  */
 
 // Get system statistics
 export const getSystemStats = async () => {
   try {
-    // Get user counts
     const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('role, is_active');
 
     if (usersError) throw usersError;
 
-    // Get database size (estimate from row counts)
     const { count: conversationsCount } = await supabase
       .from('conversations')
       .select('*', { count: 'exact', head: true });
@@ -563,12 +598,12 @@ export const getSystemStats = async () => {
       .from('learning_materials')
       .select('*', { count: 'exact', head: true });
 
-    // Calculate stats
-    const totalUsers = users.length;
-    const activeUsers = users.filter(u => u.is_active).length;
-    const admins = users.filter(u => u.role === 'admin').length;
-    const teachers = users.filter(u => u.role === 'teacher').length;
-    const students = users.filter(u => u.role === 'student').length;
+    const usersList = users || [];
+    const totalUsers = usersList.length;
+    const activeUsers = usersList.filter(u => u.is_active !== false).length;
+    const admins = usersList.filter(u => u.role === 'admin').length;
+    const teachers = usersList.filter(u => u.role === 'teacher').length;
+    const students = usersList.filter(u => u.role === 'student').length;
 
     return {
       totalUsers,
@@ -576,13 +611,22 @@ export const getSystemStats = async () => {
       admins,
       teachers,
       students,
-      conversations: conversationsCount,
-      materials: materialsCount,
+      conversations: conversationsCount || 0,
+      materials: materialsCount || 0,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
     console.error('Get system stats error:', error);
-    throw error;
+    return {
+      totalUsers: 0,
+      activeUsers: 0,
+      admins: 0,
+      teachers: 0,
+      students: 0,
+      conversations: 0,
+      materials: 0,
+      timestamp: new Date().toISOString()
+    };
   }
 };
 
@@ -598,9 +642,9 @@ export const getUserActivity = async () => {
       .gte('last_login', sevenDaysAgo.toISOString());
 
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Get user activity error:', error);
-    throw error;
+    return [];
   }
 };

@@ -1,68 +1,57 @@
 /**
- * Study Guide Component - V11
- * Displays personalized study recommendations, progress, and teacher feedback
- * Now includes progress charts for students
+ * Study Guide Panel Component - V14
+ * UPDATES:
+ * - Responsive icons matching TeacherDashboard style
+ * - Larger touch targets (60px+)
+ * - Better mobile layout
+ * - Fixed icon sizing
  */
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudyGuide } from '../contexts/StudyGuideContext';
-import {
-  BookOpen, Target, TrendingUp, Award, CheckCircle, Circle,
-  Brain, MessageSquare, Star, AlertCircle, ChevronRight, Plus,
-  Link as LinkIcon, AlertTriangle, Bell, BarChart3, Lightbulb, FileText, X, Loader, RefreshCw
-} from 'lucide-react';
-import { StudentProgressChart } from './ProgressCharts';
 import { supabase } from '../services/supabase';
+import {
+  BookOpen, Target, Lightbulb, Star, CheckCircle, Circle,
+  TrendingUp, MessageSquare, RefreshCw, X, Brain, Calendar,
+  Link as LinkIcon, Bell, ChevronRight, AlertTriangle,
+  FileText, BarChart3, Award
+} from 'lucide-react';
 
-export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
-  const { user, profile, isStudent, getTeacher } = useAuth();
-  const { studyGuide, loading, error, generateStudyGuide, completeGoal, addObservation, refresh } = useStudyGuide();
-  const [showAddObservation, setShowAddObservation] = useState(false);
-  const [newObservation, setNewObservation] = useState('');
-  const [activeTab, setActiveTab] = useState('overview');
+export const StudyGuidePanel = ({ onClose, conversationHistory = [] }) => {
+  const { user, profile } = useAuth();
+  const { studyGuide, teacher, loading, refresh, generateStudyGuide, completeGoal } = useStudyGuide();
   
-  // Chart data state
+  const [activeTab, setActiveTab] = useState('overview');
   const [chartData, setChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
 
-  // Get teacher info
-  const teacher = isStudent() ? getTeacher(profile?.teacher_id) : null;
-
-  // Load chart data when charts tab is active
+  // Load chart data when Progress tab is active
   useEffect(() => {
     const loadChartData = async () => {
       if (activeTab === 'charts' && user?.id) {
         setChartLoading(true);
         try {
-          // Get progress history
-          const { data: progressHistory } = await supabase
-            .from('progress_history')
-            .select('*')
-            .eq('student_id', user.id)
-            .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-            .order('recorded_at', { ascending: true });
-
-          // Get conversations for activity chart
+          // Get conversation history for chart
           const { data: conversations } = await supabase
             .from('conversations')
-            .select('id, created_at')
+            .select('created_at, messages')
             .eq('user_id', user.id)
-            .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+            .order('created_at', { ascending: true })
+            .limit(30);
 
-          // Group conversations by day
+          // Process data for chart
           const activityByDay = {};
           (conversations || []).forEach(conv => {
-            const day = new Date(conv.created_at).toISOString().split('T')[0];
-            activityByDay[day] = (activityByDay[day] || 0) + 1;
+            const date = new Date(conv.created_at).toLocaleDateString('en-US', { weekday: 'short' });
+            activityByDay[date] = (activityByDay[date] || 0) + 1;
           });
 
           setChartData({
-            progressHistory: progressHistory || [],
-            currentStats: {
-              vocabulary_mastered: studyGuide?.vocabulary_mastered || studyGuide?.progress?.vocabularyMastered || 0,
-              fluency_score: studyGuide?.fluency_score || studyGuide?.progress?.fluencyScore || 0,
-              conversation_count: studyGuide?.conversation_count || studyGuide?.conversationCount || 0
+            progress: {
+              vocabulary: studyGuide?.vocabulary_mastered || studyGuide?.progress?.vocabularyMastered || 0,
+              fluency: studyGuide?.fluency_score || studyGuide?.progress?.fluencyScore || 0,
+              sessions: studyGuide?.conversation_count || studyGuide?.conversationCount || 0
             },
             activityByDay
           });
@@ -85,6 +74,8 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
     weeklyGoals: [],
     recommendations: [],
     observations: [],
+    materials: [],
+    announcements: [],
     lastUpdated: new Date().toISOString()
   };
 
@@ -104,29 +95,39 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
     }
   };
 
-  // Tab configuration
+  // Tab configuration - matching TeacherDashboard style
   const tabs = [
-    { id: 'overview', icon: BookOpen, label: 'Overview', color: 'text-red-600' },
-    { id: 'charts', icon: BarChart3, label: 'Progress', color: 'text-green-600' },
-    { id: 'goals', icon: Target, label: 'Goals', color: 'text-blue-600' },
-    { id: 'recommendations', icon: Lightbulb, label: 'Tips', color: 'text-yellow-600' },
-    { id: 'materials', icon: LinkIcon, label: 'Materials', color: 'text-teal-600' },
-    { id: 'announcements', icon: Bell, label: 'News', color: 'text-purple-600' },
-    { id: 'notes', icon: FileText, label: 'Notes', color: 'text-gray-600' }
+    { id: 'overview', icon: BookOpen, label: 'Overview', shortLabel: 'Over', color: 'text-red-600', bg: 'bg-red-100' },
+    { id: 'charts', icon: BarChart3, label: 'Progress', shortLabel: 'Prog', color: 'text-blue-600', bg: 'bg-blue-100' },
+    { id: 'goals', icon: Target, label: 'Goals', shortLabel: 'Goals', color: 'text-green-600', bg: 'bg-green-100' },
+    { id: 'recommendations', icon: Lightbulb, label: 'Tips', shortLabel: 'Tips', color: 'text-yellow-600', bg: 'bg-yellow-100' },
+    { id: 'materials', icon: LinkIcon, label: 'Materials', shortLabel: 'Mats', color: 'text-purple-600', bg: 'bg-purple-100' },
+    { id: 'announcements', icon: Bell, label: 'News', shortLabel: 'News', color: 'text-orange-600', bg: 'bg-orange-100' },
+    { id: 'notes', icon: FileText, label: 'Notes', shortLabel: 'Notes', color: 'text-indigo-600', bg: 'bg-indigo-100' },
   ];
 
-  // Loading state
   if (loading) {
     return (
-      <div className="flex flex-col h-full bg-white items-center justify-center">
-        <Loader size={48} className="text-red-600 animate-spin mb-4" />
-        <p className="text-gray-600">Loading study guide...</p>
+      <div className="flex flex-col h-full bg-white">
+        <div className="flex-shrink-0 p-4 border-b bg-gradient-to-r from-red-50 to-pink-50">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center">
+              <BookOpen className="mr-2 text-red-600" size={24} />
+              Study Guide
+            </h2>
+            <button onClick={onClose} className="p-2 hover:bg-white/50 rounded-lg">
+              <X size={20} className="text-gray-600" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <RefreshCw size={32} className="text-red-600 animate-spin" />
+        </div>
       </div>
     );
   }
 
-  // Error/Empty state
-  if (error || !studyGuide) {
+  if (!studyGuide) {
     return (
       <div className="flex flex-col h-full bg-white">
         <div className="flex-shrink-0 p-4 border-b bg-gradient-to-r from-red-50 to-pink-50">
@@ -141,11 +142,11 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center">
-            <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
+          <div className="text-center max-w-sm">
+            <BookOpen size={64} className="text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Study Guide Yet</h3>
             <p className="text-gray-600 mb-4">
-              {conversationHistory.length > 0 
+              {conversationHistory.length > 0
                 ? "Generate your personalized study guide!"
                 : "Start conversations to generate your guide!"}
             </p>
@@ -166,44 +167,52 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b bg-gradient-to-r from-red-50 to-pink-50">
+      <div className="flex-shrink-0 p-4 border-b bg-gradient-to-r from-red-600 to-pink-600">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center">
-            <BookOpen className="mr-2 text-red-600" size={24} />
+          <h2 className="text-lg font-bold text-white flex items-center">
+            <BookOpen className="mr-2" size={24} />
             Study Guide
           </h2>
           <div className="flex items-center space-x-2">
-            <button onClick={refresh} className="p-2 hover:bg-white/50 rounded-lg" title="Refresh">
-              <RefreshCw size={18} className="text-gray-600" />
+            <button onClick={refresh} className="p-2 hover:bg-white/20 rounded-lg" title="Refresh">
+              <RefreshCw size={18} className="text-white" />
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-white/50 rounded-lg">
-              <X size={20} className="text-gray-600" />
+            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg">
+              <X size={20} className="text-white" />
             </button>
           </div>
         </div>
 
         {teacher && (
-          <div className="text-sm text-gray-600 mb-3">
-            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+          <div className="text-sm text-white/90 mb-3">
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
               Teacher: {teacher.display_name || teacher.email?.split('@')[0]}
             </span>
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex space-x-1 overflow-x-auto pb-1 -mx-1 px-1">
+        {/* Tabs - Responsive with larger icons */}
+        <div className="flex justify-between bg-white/10 rounded-xl p-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg min-w-[52px] ${
-                activeTab === tab.id ? 'bg-white shadow-sm' : 'hover:bg-white/50'
+              className={`flex flex-col items-center justify-center flex-1 py-2 px-1 rounded-lg transition-all min-h-[60px] ${
+                activeTab === tab.id 
+                  ? 'bg-white shadow-sm' 
+                  : 'hover:bg-white/20'
               }`}
             >
-              <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-gray-400'} />
-              <span className={`text-[10px] mt-0.5 font-medium ${
-                activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'
-              }`}>{tab.label}</span>
+              <tab.icon 
+                size={22} 
+                className={activeTab === tab.id ? tab.color : 'text-white/80'} 
+              />
+              <span className={`text-[10px] sm:text-xs mt-1 font-medium truncate max-w-full ${
+                activeTab === tab.id ? 'text-gray-900' : 'text-white/80'
+              }`}>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -214,80 +223,149 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
+            {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-red-50 rounded-xl p-3 text-center">
-                <Brain size={20} className="text-red-600 mx-auto mb-1" />
-                <p className="text-xl font-bold text-gray-900">
+              <div className="bg-red-50 rounded-xl p-4 text-center">
+                <Brain size={24} className="text-red-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">
                   {guide.progress?.vocabularyMastered || guide.vocabulary_mastered || 0}
                 </p>
                 <p className="text-xs text-gray-600">Words</p>
               </div>
-              <div className="bg-orange-50 rounded-xl p-3 text-center">
-                <TrendingUp size={20} className="text-orange-600 mx-auto mb-1" />
-                <p className="text-xl font-bold text-gray-900">
+              <div className="bg-orange-50 rounded-xl p-4 text-center">
+                <TrendingUp size={24} className="text-orange-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">
                   {guide.progress?.fluencyScore || guide.fluency_score || 0}%
                 </p>
                 <p className="text-xs text-gray-600">Fluency</p>
               </div>
-              <div className="bg-blue-50 rounded-xl p-3 text-center">
-                <MessageSquare size={20} className="text-blue-600 mx-auto mb-1" />
-                <p className="text-xl font-bold text-gray-900">
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <MessageSquare size={24} className="text-blue-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-gray-900">
                   {guide.conversationCount || guide.conversation_count || 0}
                 </p>
                 <p className="text-xs text-gray-600">Sessions</p>
               </div>
             </div>
 
+            {/* Strengths */}
             {(guide.analysis?.strengths || guide.strengths || []).length > 0 && (
               <div className="bg-green-50 rounded-xl p-4">
                 <h3 className="font-semibold text-green-800 mb-2 flex items-center">
-                  <Star size={16} className="mr-1" /> Your Strengths
+                  <Star size={18} className="mr-2" /> Your Strengths
                 </h3>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {(guide.analysis?.strengths || guide.strengths || []).map((s, i) => (
                     <p key={i} className="text-sm text-green-700 flex items-center">
-                      <CheckCircle size={14} className="mr-2" />{s}
+                      <CheckCircle size={14} className="mr-2 flex-shrink-0" />
+                      {s}
                     </p>
                   ))}
                 </div>
               </div>
             )}
 
-            {(guide.analysis?.commonMistakes || guide.weaknesses || []).length > 0 && (
+            {/* Areas to Improve */}
+            {(guide.analysis?.commonMistakes || guide.areasToImprove || []).length > 0 && (
               <div className="bg-orange-50 rounded-xl p-4">
                 <h3 className="font-semibold text-orange-800 mb-2 flex items-center">
-                  <AlertCircle size={16} className="mr-1" /> Areas to Work On
+                  <AlertTriangle size={18} className="mr-2" /> Areas to Focus
                 </h3>
-                <div className="space-y-1">
-                  {(guide.analysis?.commonMistakes || guide.weaknesses || []).map((a, i) => (
+                <div className="space-y-2">
+                  {(guide.analysis?.commonMistakes || guide.areasToImprove || []).map((m, i) => (
                     <p key={i} className="text-sm text-orange-700 flex items-center">
-                      <AlertTriangle size={14} className="mr-2" />{a}
+                      <span className="w-2 h-2 rounded-full bg-orange-400 mr-2 flex-shrink-0" />
+                      {m}
                     </p>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Last Updated */}
+            <div className="text-center text-xs text-gray-400">
+              Last updated: {new Date(guide.lastUpdated || guide.updated_at).toLocaleString()}
+            </div>
           </div>
         )}
 
-        {/* Charts Tab */}
+        {/* Progress/Charts Tab */}
         {activeTab === 'charts' && (
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">Your Progress</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">Your Progress</h3>
+            
             {chartLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader size={32} className="text-gray-400 animate-spin" />
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw size={24} className="text-blue-600 animate-spin" />
               </div>
             ) : chartData ? (
-              <StudentProgressChart
-                progressHistory={chartData.progressHistory}
-                currentStats={chartData.currentStats}
-                activityByDay={chartData.activityByDay}
-              />
+              <>
+                {/* Progress Bars */}
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">Vocabulary</span>
+                      <span className="font-medium">{chartData.progress.vocabulary} words</span>
+                    </div>
+                    <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-red-500 to-red-600 rounded-full transition-all"
+                        style={{ width: `${Math.min((chartData.progress.vocabulary / 500) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">Fluency</span>
+                      <span className="font-medium">{chartData.progress.fluency}%</span>
+                    </div>
+                    <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full transition-all"
+                        style={{ width: `${chartData.progress.fluency}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">Practice Sessions</span>
+                      <span className="font-medium">{chartData.progress.sessions}</span>
+                    </div>
+                    <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                        style={{ width: `${Math.min((chartData.progress.sessions / 50) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Chart */}
+                <div className="bg-gray-50 rounded-xl p-4 mt-4">
+                  <h4 className="font-medium text-gray-700 mb-3">Weekly Activity</h4>
+                  <div className="flex items-end justify-between h-24 space-x-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => {
+                      const count = chartData.activityByDay[day] || 0;
+                      const height = count > 0 ? Math.max(20, (count / 5) * 100) : 8;
+                      return (
+                        <div key={day} className="flex-1 flex flex-col items-center">
+                          <div 
+                            className={`w-full rounded-t transition-all ${count > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}
+                            style={{ height: `${height}%` }}
+                          />
+                          <span className="text-[10px] text-gray-500 mt-1">{day}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <BarChart3 size={48} className="mx-auto mb-3 text-gray-300" />
-                <p className="text-sm">Start practicing to see your progress!</p>
+                <BarChart3 size={32} className="mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No progress data yet</p>
               </div>
             )}
           </div>
@@ -299,26 +377,27 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
             <h3 className="font-semibold text-gray-900 mb-2">Weekly Goals</h3>
             {(guide.weeklyGoals || guide.goals || []).length > 0 ? (
               (guide.weeklyGoals || guide.goals || []).map((goal, idx) => (
-                <div key={goal.id || idx} className={`p-3 rounded-xl border ${
+                <div key={goal.id || idx} className={`rounded-xl p-4 border ${
                   goal.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
                 }`}>
-                  <div className="flex items-start">
+                  <div className="flex items-start space-x-3">
                     <button
-                      onClick={() => !goal.completed && handleCompleteGoal(goal.id)}
-                      className="mt-0.5 mr-3"
-                      disabled={goal.completed}
+                      onClick={() => handleCompleteGoal(goal.id || idx)}
+                      className="mt-0.5 flex-shrink-0"
                     >
                       {goal.completed ? (
-                        <CheckCircle size={20} className="text-green-600" />
+                        <CheckCircle size={22} className="text-green-600" />
                       ) : (
-                        <Circle size={20} className="text-gray-400 hover:text-blue-600" />
+                        <Circle size={22} className="text-gray-400 hover:text-blue-600" />
                       )}
                     </button>
-                    <div>
-                      <p className={goal.completed ? 'text-green-800 line-through' : 'text-gray-900'}>
+                    <div className="flex-1">
+                      <p className={`font-medium ${goal.completed ? 'text-green-800 line-through' : 'text-gray-900'}`}>
                         {goal.title}
                       </p>
-                      {goal.description && <p className="text-sm text-gray-600 mt-1">{goal.description}</p>}
+                      {goal.description && (
+                        <p className="text-sm text-gray-600 mt-1">{goal.description}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -340,7 +419,7 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
               guide.recommendations.map((rec, idx) => (
                 <div key={idx} className="bg-yellow-50 rounded-xl p-4 border border-yellow-100">
                   <div className="flex items-start">
-                    <Lightbulb size={18} className="text-yellow-600 mr-2 mt-0.5" />
+                    <Lightbulb size={20} className="text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="font-medium text-gray-900">{rec.title}</p>
                       <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
@@ -363,17 +442,24 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
             <h3 className="font-semibold text-gray-900 mb-2">Learning Materials</h3>
             {(guide.materials || []).length > 0 ? (
               guide.materials.map((m, idx) => (
-                <a key={idx} href={m.url} target="_blank" rel="noopener noreferrer"
-                   className="block bg-white rounded-xl p-4 border hover:shadow-md">
+                <a 
+                  key={idx} 
+                  href={m.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="block bg-white rounded-xl p-4 border hover:shadow-md transition-shadow"
+                >
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center mr-3">
-                      <LinkIcon size={20} className="text-teal-600" />
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                      <LinkIcon size={24} className="text-purple-600" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">{m.title}</p>
-                      {m.description && <p className="text-sm text-gray-600 truncate">{m.description}</p>}
+                      {m.description && (
+                        <p className="text-sm text-gray-600 truncate">{m.description}</p>
+                      )}
                     </div>
-                    <ChevronRight size={18} className="text-gray-400" />
+                    <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
                   </div>
                 </a>
               ))
@@ -395,18 +481,19 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
                 <div key={idx} className={`rounded-xl p-4 border ${
                   a.priority === 'urgent' ? 'bg-red-50 border-red-200' :
                   a.priority === 'important' ? 'bg-orange-50 border-orange-200' :
-                  'bg-purple-50 border-purple-200'
+                  'bg-blue-50 border-blue-200'
                 }`}>
                   <div className="flex items-start">
-                    <Bell size={18} className={`mr-2 mt-0.5 ${
+                    <Bell size={20} className={`mr-3 mt-0.5 flex-shrink-0 ${
                       a.priority === 'urgent' ? 'text-red-600' :
-                      a.priority === 'important' ? 'text-orange-600' : 'text-purple-600'
+                      a.priority === 'important' ? 'text-orange-600' :
+                      'text-blue-600'
                     }`} />
-                    <div>
-                      <p className="font-medium text-gray-900">{a.title}</p>
-                      <p className="text-sm text-gray-600 mt-1">{a.message}</p>
-                      <p className="text-xs text-gray-400 mt-2">
-                        {new Date(a.created_at || a.createdAt).toLocaleDateString()}
+                    <div className="flex-1">
+                      <p className="text-gray-900">{a.content}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {new Date(a.created_at).toLocaleDateString()}
+                        {a.teacher?.display_name && ` • ${a.teacher.display_name}`}
                       </p>
                     </div>
                   </div>
@@ -415,47 +502,40 @@ export const StudyGuidePanel = ({ conversationHistory = [], onClose }) => {
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <Bell size={32} className="mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No announcements</p>
+                <p className="text-sm">No announcements yet</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Notes Tab */}
+        {/* Notes Tab (Teacher Observations) */}
         {activeTab === 'notes' && (
           <div className="space-y-3">
             <h3 className="font-semibold text-gray-900 mb-2">Teacher Notes</h3>
             {(guide.observations || []).length > 0 ? (
               guide.observations.map((obs, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-xl p-4 border">
-                  <p className="text-gray-900">{obs.text}</p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    {new Date(obs.created_at || obs.timestamp).toLocaleDateString()}
-                  </p>
+                <div key={idx} className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                  <div className="flex items-start">
+                    <FileText size={20} className="text-indigo-600 mr-3 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-gray-900">{obs.content}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {new Date(obs.created_at).toLocaleDateString()}
+                        {obs.teacher?.display_name && ` • ${obs.teacher.display_name}`}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <FileText size={32} className="mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No notes yet</p>
+                <p className="text-sm">No teacher notes yet</p>
               </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Update Button */}
-      {conversationHistory.length > 0 && (
-        <div className="flex-shrink-0 p-4 border-t bg-gray-50">
-          <button
-            onClick={handleRefreshGuide}
-            className="w-full py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 flex items-center justify-center"
-          >
-            <RefreshCw size={18} className="mr-2" />
-            Update Study Guide
-          </button>
-        </div>
-      )}
     </div>
   );
 };
