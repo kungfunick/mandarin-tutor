@@ -436,8 +436,7 @@ export const getSystemSettings = async () => {
 
     return {
       registrationEnabled: data.registration_enabled ?? true,
-      globalDebugEnabled: data.global_debug_enabled ?? false,
-      maintenanceMode: data.maintenance_mode ?? false
+      globalDebugEnabled: data.global_debug_enabled ?? false
     };
   } catch (error) {
     console.error('Get system settings error:', error);
@@ -454,7 +453,6 @@ export const updateSystemSettings = async (settings, userId) => {
         id: 1,
         registration_enabled: settings.registrationEnabled,
         global_debug_enabled: settings.globalDebugEnabled,
-        maintenance_mode: settings.maintenanceMode,
         updated_at: new Date().toISOString(),
         updated_by: userId
       })

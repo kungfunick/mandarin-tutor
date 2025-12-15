@@ -39,8 +39,7 @@ export const AdminPanel = ({ onClose, onSettingsChange }) => {
   // System settings state - these are GLOBAL settings stored in database
   const [systemSettings, setSystemSettings] = useState({
     registrationEnabled: true,
-    globalDebugEnabled: false,
-    maintenanceMode: false
+    globalDebugEnabled: false
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -77,8 +76,7 @@ export const AdminPanel = ({ onClose, onSettingsChange }) => {
       if (!error && data) {
         const newSettings = {
           registrationEnabled: data.registration_enabled ?? true,
-          globalDebugEnabled: data.global_debug_enabled ?? false,
-          maintenanceMode: data.maintenance_mode ?? false
+          globalDebugEnabled: data.global_debug_enabled ?? false
         };
         setSystemSettings(newSettings);
         // Sync to localStorage for quick access by other components
@@ -135,7 +133,6 @@ export const AdminPanel = ({ onClose, onSettingsChange }) => {
           id: 1,
           registration_enabled: newSettings.registrationEnabled,
           global_debug_enabled: newSettings.globalDebugEnabled,
-          maintenance_mode: newSettings.maintenanceMode,
           updated_at: new Date().toISOString(),
           updated_by: user?.id
         });
@@ -176,13 +173,6 @@ export const AdminPanel = ({ onClose, onSettingsChange }) => {
     const debugElements = document.querySelectorAll('[data-debug-ui]');
     debugElements.forEach(el => {
       el.style.display = newValue ? '' : 'none';
-    });
-  };
-
-  const handleToggleMaintenance = () => {
-    saveSystemSettings({
-      ...systemSettings,
-      maintenanceMode: !systemSettings.maintenanceMode
     });
   };
 
